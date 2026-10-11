@@ -514,15 +514,14 @@ header.top::after{left:max(14px,env(safe-area-inset-left));right:max(14px,env(sa
 @media (max-width:430px){
   header.top{min-height:52px;padding:6px max(10px,env(safe-area-inset-right)) 6px max(10px,env(safe-area-inset-left));gap:6px}
   header.top .brand{gap:7px}
-  header.top .brand>span.brand-name{display:inline;font-size:17px}
+  header.top .brand>span.brand-name{display:none}
   header.top .seg button{padding:8px 9px}
   .fsbtn{padding:0 8px;gap:4px}
 }
-@media (max-width:374px){ header.top .brand>span.brand-name{display:none} }
 @media (orientation:landscape) and (max-height:500px){
   body:not(.fs) header.top{min-height:0;padding:calc(4px + env(safe-area-inset-top)) 10px 4px}
   body:not(.fs) header.top .brand{display:flex;gap:6px}
-  body:not(.fs) header.top .brand>span.brand-name{display:inline;font-size:14px}
+  body:not(.fs) header.top .brand>span.brand-name{display:none}
   body:not(.fs) header.top::after{left:10px;right:10px}
 }
 .emptybtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:stretch}
@@ -534,6 +533,30 @@ header.top::after{left:max(14px,env(safe-area-inset-left));right:max(14px,env(sa
 .addmenu button svg{width:20px;height:20px}
 .addmenu button:active,.addmenu button:hover{background:rgba(0,106,167,.25)}
 @media (prefers-color-scheme:light){.addmenu{background:#fff;color:#0b1a2e}}
+.bstrip{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 2px 10px;margin:0 0 6px;scroll-snap-type:x proximity}
+.bcell{position:relative;flex:none;width:112px;height:112px;border-radius:12px;overflow:hidden;background:#0a1626;scroll-snap-align:start;display:grid;place-items:center;cursor:zoom-in}
+.bcell canvas{max-width:100%;max-height:100%;display:block}
+.bcell .bph{position:absolute;inset:auto 0 6px;text-align:center;font-size:11px;color:#cfd8e6}
+.bcell .bx{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:none;color:#fff;font-size:15px;display:grid;place-items:start end;padding:6px 8px}
+.bcell .bx::before{content:"";position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;background:rgba(11,26,46,.75);z-index:-1}
+@media (min-width:700px){ .bstrip{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible;max-height:46vh;overflow-y:auto} .bcell{width:auto;height:150px} }
+.bzoom .cdlg-box{position:relative;max-width:min(92vw,900px)}
+.bzoom canvas.bbig{width:100%;height:auto;max-height:70vh;object-fit:contain;border-radius:10px;touch-action:none;-webkit-touch-callout:none;user-select:none}
+.bzoom .holdlbl{position:absolute;top:22px;left:22px}
+.galph{display:grid;place-items:center;align-content:center;gap:6px;width:100%;aspect-ratio:1;background:#132a47;color:#cfd8e6;font-size:11px;text-align:center;padding:6px}
+.galretry{display:inline-block;min-height:32px;padding:6px 10px;border-radius:8px;background:#006aa7;color:#fff;font-size:12px}
+#batchJustBtn{margin-top:12px;min-height:48px}
+.addmenu.inline{position:static;box-shadow:none;margin:8px 0}
+.noisechip{display:inline-flex;align-items:center;gap:6px;min-height:36px;margin:0 0 8px;padding:4px 12px;border-radius:999px;border:1px solid rgba(255,211,77,.5);background:rgba(255,211,77,.12);color:var(--accent-text,#ffd34d);font-size:13px;font-weight:600}
+.noisechip::before{content:"";width:8px;height:8px;border-radius:50%;background:#ffd34d}
+.nrblock{margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+/* v9: Granskaren v8 */
+body.fs #fsToolsBtn{color:#fff}
+@media (prefers-color-scheme: light){ body.fs #fsToolsBtn{color:#fff;background:rgba(11,26,46,.78)} body.fs #fsToolsBtn.on{background:#006aa7;color:#fff} }
+.input::placeholder,textarea::placeholder,input::placeholder{color:#a9b9cc;opacity:1}
+@media (prefers-color-scheme: light){ .input::placeholder,textarea::placeholder,input::placeholder{color:#55657a} }
+.seg button{min-width:44px}
+@media (min-width:700px) and (min-height:501px){ body:not(.fs) header.top{min-height:60px;padding-top:max(5px,env(safe-area-inset-top));padding-bottom:5px} } /* iPad: 60 px huvud (50 px knappgrupp + 2×5) */
 </style>
 </head>
 <body>
@@ -762,6 +785,14 @@ function tapRecognizer(target, o) {
   return { cancel: reset };
 }
 
+/* Återkalla en blob-URL först när inget element längre visar den (WebKit gav "access control checks" för återkallade URL:er) */
+function revokeSafe(u, n) {
+  if (!u) return;
+  var used = false; try { used = !!document.querySelector('[src="' + u + '"]'); } catch (e) {}
+  if (used && (n || 0) < 24) { setTimeout(function () { revokeSafe(u, (n || 0) + 1); }, 5000); return; }
+  try { URL.revokeObjectURL(u); } catch (e) {}
+}
+
 /* ---------- bildjusteringar ---------- */
 var ADJ = [
   { k: 'exposure', label: 'Exponering' },
@@ -776,8 +807,8 @@ var ADJ = [
 ];
 var PRESETS = {
   original: { name: 'Original', v: {} },
-  natural: { name: 'Naturlig', v: { exposure: 6, contrast: 4, highlights: -25, shadows: 42, saturation: 26, warmth: 24, sharpness: 18, clarity: 10 } },
-  crystal: { name: 'Kristallklar', v: { exposure: 3, contrast: 30, highlights: 8, shadows: -6, saturation: 12, warmth: -14, sharpness: 70, clarity: 65 } }
+  natural: { name: 'Naturlig', v: { exposure: 6, contrast: 4, highlights: -25, shadows: 42, saturation: 26, warmth: 24, sharpness: 35, clarity: 10 } },
+  crystal: { name: 'Kristallklar', v: { exposure: 2, contrast: 16, highlights: -12, shadows: 10, saturation: 28, warmth: 8, sharpness: 60, clarity: 50 } }
 };
 function blankLook() { var s = {}; ADJ.forEach(function (a) { s[a.k] = 0; }); return s; }
 function presetLook(id) { var s = blankLook(), v = PRESETS[id].v, k; for (k in v) s[k] = v[k]; return s; }
@@ -806,17 +837,18 @@ function computeLum(d, n) {
   for (var i = 0, p = 0; i < n; i++, p += 4) L[i] = (0.2126 * d[p] + 0.7152 * d[p + 1] + 0.0722 * d[p + 2]) / 255;
   return L;
 }
-function boxBlur(a, w, h, r) {
-  var t = new Float32Array(a.length), inv = 1 / (2 * r + 1), x, y, k, s, o;
+function boxBlur(a, w, h, r) { // separerbar lådoskärpa, radvis (cachevänlig) i båda riktningarna, kanter klampas
+  var t = new Float32Array(a.length), inv = 1 / (2 * r + 1), x, y, k, s, o, wm = w - 1, hm = h - 1;
   for (y = 0; y < h; y++) {
     o = y * w; s = 0;
-    for (k = -r; k <= r; k++) s += a[o + Math.min(w - 1, Math.max(0, k))];
-    for (x = 0; x < w; x++) { t[o + x] = s * inv; s += a[o + Math.min(w - 1, x + r + 1)] - a[o + Math.max(0, x - r)]; }
+    for (k = -r; k <= r; k++) s += a[o + (k < 0 ? 0 : k > wm ? wm : k)];
+    for (x = 0; x < w; x++) { t[o + x] = s * inv; var xa = x + r + 1, xs = x - r; s += a[o + (xa > wm ? wm : xa)] - a[o + (xs < 0 ? 0 : xs)]; }
   }
-  for (x = 0; x < w; x++) {
-    s = 0;
-    for (k = -r; k <= r; k++) s += t[Math.min(h - 1, Math.max(0, k)) * w + x];
-    for (y = 0; y < h; y++) { a[y * w + x] = s * inv; s += t[Math.min(h - 1, y + r + 1) * w + x] - t[Math.max(0, y - r) * w + x]; }
+  var acc = new Float32Array(w);
+  for (k = -r; k <= r; k++) { o = (k < 0 ? 0 : k > hm ? hm : k) * w; for (x = 0; x < w; x++) acc[x] += t[o + x]; }
+  for (y = 0; y < h; y++) {
+    o = y * w; var ya = y + r + 1, ys = y - r, oa = (ya > hm ? hm : ya) * w, os = (ys < 0 ? 0 : ys) * w;
+    for (x = 0; x < w; x++) { a[o + x] = acc[x] * inv; acc[x] += t[oa + x] - t[os + x]; }
   }
 }
 /* Lågupplöst, kraftigt suddad luminans för "Klarhet" (lokal kontrast).
@@ -844,6 +876,7 @@ function processPixels(src, dst, L, clar, w, h, st) {
 }
 /* Skärpa: 3×3 på förhandsbilden (≤1600 px). Större bilder får en proportionellt större kärna
    (boxoskärpa med radie sr) så att skärpan ser likadan ut som i förhandsvisningen. */
+var SH_T = 2.5 / 255; // skärpetröskel (brusskydd)
 function sharpRadius(W, H) { return Math.max(1, Math.round(Math.max(W, H) / 1600)); }
 /* Bearbetar raderna [y0,y1) i ett band (w×h pixlar) som börjar på (ox,oy) i en bild som är W×H.
    Vinjett och klarhet räknas i hela bildens koordinater, skärpa lokalt (bandet har marginal). */
@@ -851,8 +884,12 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
   var lut = buildLUT(st);
   var warm = st.warmth / 100, rM = 1 + warm * 0.10, gM = 1 + warm * 0.015, bM = 1 - warm * 0.10;
   var sharp = st.sharpness / 100 * 1.4, cl = st.clarity / 100 * 0.9, sat = st.saturation / 100, vig = st.vignette / 100 * 0.55;
-  var inv = 1 / 255, x, y, vx = null, la = st.autoLevels ? levelsLUT(st.autoLevels) : null, l0 = la && la[0], l1 = la && la[1], l2 = la && la[2];
+  var inv = 1 / 255, x, y, vx = null, nzAtt = st.noise ? (st.noise.level === 'high' ? 0.5 : st.noise.level === 'medium' ? 0.3 : 0) : 0, la = st.autoLevels ? levelsLUT(st.autoLevels, nzAtt) : null, l0 = la && la[0], l1 = la && la[1], l2 = la && la[2], lvib = la ? (st.autoLevels.vib || 0) * 2.5 : 0;
   if (vig > 0) { vx = new Float32Array(w); for (x = 0; x < w; x++) { var dx = (x + ox + 0.5) / W * 2 - 1; vx[x] = dx * dx; } }
+  if (nzAtt) cl *= 1 - nzAtt; // brusig bild: dämpa klarheten
+  /* adaptiv skärpetröskel: max(2,5/255, 1,5·σ) och mindre skärpa i plana ytor i proportion till bruset */
+  var nsig = st.noise ? noiseSig(st.noise, W, H).y / 255 * (1 - 0.7 * nrAmount(st)) : 0;
+  var T = Math.max(SH_T, 1.5 * nsig), T3 = 3 * nsig;
   var cw = clar.w, ch = clar.h, cd = clar.d, cf = clar.f;
   var cx0a = null, cx1a = null, txa = null;
   if (cl !== 0) {
@@ -867,16 +904,21 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
     for (x = 0; x < w; x++) {
       var i = row + x, p = i << 2;
       var r, g, b;
-      if (la) { r = l0[src[p]] * rM; g = l1[src[p + 1]] * gM; b = l2[src[p + 2]] * bM; } // Autonivåer först
+      if (la) { // Autonivåer först (+ lätt vibrans på omättade färger)
+        r = l0[src[p]]; g = l1[src[p + 1]]; b = l2[src[p + 2]];
+        if (lvib) { var m3 = (r + g + b) / 3, sx = Math.max(r, g, b) - Math.min(r, g, b), va = lvib * (1 - Math.min(1, sx * 2)) * (m3 > 0.9 ? (1 - m3) * 10 : 1); r = m3 + (r - m3) * (1 + va); g = m3 + (g - m3) * (1 + va); b = m3 + (b - m3) * (1 + va); }
+        r *= rM; g *= gM; b *= bM; }
       else { r = src[p] * inv * rM; g = src[p + 1] * inv * gM; b = src[p + 2] * inv * bM; }
       var l = L[i], d = 0;
       if (SB) {
-        var s2 = (l - SB[i]) * sharp;
+        var e2 = l - SB[i], a2 = e2 < 0 ? -e2 : e2; e2 = e2 > T ? e2 - T : (e2 < -T ? e2 + T : 0); if (T3 && a2 < T3) e2 *= a2 / T3; // tröskel: plana ytor (himmel) skärps inte
+        var s2 = e2 * sharp;
         d += s2 > 0.18 ? 0.18 : (s2 < -0.18 ? -0.18 : s2);
       } else if (sharp !== 0) {
         var xm = x > 0 ? x - 1 : x, xp = x < w - 1 ? x + 1 : x;
         var avg = (L[ym + xm] + L[ym + x] + L[ym + xp] + L[row + xm] + l + L[row + xp] + L[yp + xm] + L[yp + x] + L[yp + xp]) / 9;
-        var s = (l - avg) * sharp;
+        var e1 = l - avg, a1 = e1 < 0 ? -e1 : e1; e1 = e1 > T ? e1 - T : (e1 < -T ? e1 + T : 0); if (T3 && a1 < T3) e1 *= a1 / T3;
+        var s = e1 * sharp;
         d += s > 0.18 ? 0.18 : (s < -0.18 ? -0.18 : s);
       }
       if (cl !== 0) {
@@ -887,9 +929,15 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
         d += cl * (l - (top + (bot - top) * ty)) * (0.35 + 0.65 * (1 - mm * mm));
       }
       if (d !== 0) { r += d; g += d; b += d; }
-      r = lut[r <= 0 ? 0 : (r >= 1 ? 1023 : (r * 1023 + 0.5) | 0)];
-      g = lut[g <= 0 ? 0 : (g >= 1 ? 1023 : (g * 1023 + 0.5) | 0)];
-      b = lut[b <= 0 ? 0 : (b >= 1 ? 1023 : (b * 1023 + 0.5) | 0)];
+      /* tonkurvan (exponering/kontrast/högdagrar/skuggor) verkar på luminansen; krominansen (r−Y, g−Y, b−Y) läggs tillbaka
+         oförändrad, så att kontrast och klarhet inte ändrar mättnad eller nyans. Skalas bara ned om en kanal annars klipps. */
+      var Y0 = 0.2126 * r + 0.7152 * g + 0.0722 * b, Y1 = lut[Y0 <= 0 ? 0 : (Y0 >= 1 ? 1023 : (Y0 * 1023 + 0.5) | 0)];
+      r -= Y0; g -= Y0; b -= Y0;
+      var cmx = r > g ? (r > b ? r : b) : (g > b ? g : b), cmn = r < g ? (r < b ? r : b) : (g < b ? g : b), kc = 1;
+      if (Y1 + cmx > 1 && cmx > 0) kc = (1 - Y1) / cmx;
+      if (Y1 + cmn < 0 && cmn < 0) { var k2 = -Y1 / cmn; if (k2 < kc) kc = k2; }
+      if (kc < 0) kc = 0;
+      r = Y1 + r * kc; g = Y1 + g * kc; b = Y1 + b * kc;
       if (sat !== 0) {
         var ll = 0.2126 * r + 0.7152 * g + 0.0722 * b, a = sat;
         if (a > 0) { var mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b); a *= 1 - (mx - mn) * 0.7; }
@@ -903,49 +951,69 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
     }
   }
 }
-/* ---------- Autonivåer (som Photoshops Auto Levels + vitbalans) ----------
-   Räknas på förhandsbilden och sparas som parametrar i looken; samma parametrar används vid
-   export i full upplösning. Formel per kanal c:  ut = clamp((v − svart_c)/(vit_c − svart_c), 0, 1)^(1/gamma) */
+/* ---------- Autonivåer (som Photoshops "Förbättra kontrast per kanal" + "Hitta mörka och ljusa färger") ----------
+   Räknas på en nedsamplad förhandsbild och sparas som parametrar i looken; samma parametrar används vid export.
+   Per kanal c:  n = clamp((v − svart_c)/(vit_c − svart_c), 0, 1);  ut = S(n^e_c)
+   där e_c = mittonsneutralisering_c × global gamma-exponent och S en mild S-kurva med skyddade högdagrar.
+   Efteråt (i processRegion) lätt vibrans på omättade färger om histogrammet var smalt. */
 function computeAutoLevels(d, n) {
-  var hL = new Uint32Array(256), hC = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)], p, i;
-  for (i = 0, p = 0; i < n; i++, p += 4) {
-    var r = d[p], g = d[p + 1], b = d[p + 2];
-    hC[0][r]++; hC[1][g]++; hC[2][b]++; hL[(0.2126 * r + 0.7152 * g + 0.0722 * b + 0.5) | 0]++;
+  var step = Math.max(1, Math.floor(n / 250000)), hC = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)], cnt = 0, i, p, c;
+  for (i = 0; i < n; i += step) {
+    p = i << 2; var r = d[p], g = d[p + 1], b = d[p + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (mx <= 2 || mn >= 253) continue; // ram/letterbox i rent svart eller vitt räknas inte
+    hC[0][r]++; hC[1][g]++; hC[2][b]++; cnt++;
   }
-  function pct(h, q) { var t = q * n, s = 0; for (var k = 0; k < 256; k++) { s += h[k]; if (s > t) return k; } return 255; }
-  var lo = pct(hL, 0.001), hi = pct(hL, 0.999);
-  if (hi - lo < 16) { var mid = (hi + lo) / 2; lo = Math.max(0, mid - 8); hi = Math.min(255, lo + 16); }
-  // neutrala referenspixlar: ljusaste ~5 %, låg mättnad, inte utfrätta
-  var lim = Math.max(lo + 1, pct(hL, 0.95)), sR = 0, sG = 0, sB = 0, cnt = 0, method = 'högdagrar';
-  for (i = 0, p = 0; i < n; i++, p += 4) {
-    var R = d[p], G = d[p + 1], B = d[p + 2], l = 0.2126 * R + 0.7152 * G + 0.0722 * B;
-    if (l < lim) continue;
-    var mx = Math.max(R, G, B), mn = Math.min(R, G, B);
-    if (mx >= 254 || (mx - mn) / (mx || 1) > 0.25) continue;
-    sR += R; sG += G; sB += B; cnt++;
+  if (cnt < 100) return null;
+  function pct(h, q) { var t = q * cnt, s = 0; for (var k = 0; k < 256; k++) { s += h[k]; if (s > t) return k; } return 255; }
+  var black = [], white = [];
+  for (c = 0; c < 3; c++) {
+    var bl = pct(hC[c], 0.005), wh = pct(hC[c], 0.995);
+    if (wh - bl < 32) { var m = (wh + bl) / 2; bl = Math.max(0, m - 16); wh = Math.min(255, bl + 32); }
+    black.push(bl); white.push(wh);
   }
-  if (cnt < Math.max(50, n * 0.002)) { // gråvärldsantagande som reserv
-    sR = sG = sB = 0; for (i = 0, p = 0; i < n; i++, p += 4) { sR += d[p]; sG += d[p + 1]; sB += d[p + 2]; } cnt = n; method = 'gråvärld';
+  // andra passet: värden efter nivåer, för neutralisering och gamma
+  function lv(v, c) { var x = (v - black[c]) / (white[c] - black[c]); return x < 0 ? 0 : x > 1 ? 1 : x; }
+  var neu = [[], [], []], lum = [];
+  for (i = 0; i < n; i += step * 2) {
+    p = i << 2; var R = d[p], G = d[p + 1], B = d[p + 2]; if (Math.max(R, G, B) <= 2 || Math.min(R, G, B) >= 253) continue;
+    var x0 = lv(R, 0), x1 = lv(G, 1), x2 = lv(B, 2), L = 0.2126 * x0 + 0.7152 * x1 + 0.0722 * x2, mx2 = Math.max(x0, x1, x2), mn2 = Math.min(x0, x1, x2);
+    lum.push(L);
+    if (L > 0.15 && L < 0.85 && mx2 - mn2 < 0.15) { neu[0].push(x0); neu[1].push(x1); neu[2].push(x2); }
   }
-  var ref = [sR / cnt, sG / cnt, sB / cnt], gray = (ref[0] + ref[1] + ref[2]) / 3;
-  var black = [], white = [], gain = [];
-  for (var c = 0; c < 3; c++) {
-    var gn = Math.max(0.85, Math.min(1.15, gray / Math.max(1, ref[c]))); gain.push(+gn.toFixed(3));
-    var w = Math.max(lo + 16, Math.min(255, hi / gn));
-    var bl = lo + Math.max(-10, Math.min(10, pct(hC[c], 0.001) - lo)); // begränsad per-kanal-kontrast
-    bl = Math.max(0, Math.min(w - 16, bl));
-    black.push(+bl.toFixed(1)); white.push(+w.toFixed(1));
+  function med(a) { if (!a.length) return 0.5; a.sort(function (u, v) { return u - v; }); return a[a.length >> 1]; }
+  var e = [1, 1, 1], gain = [1, 1, 1];
+  if (neu[0].length > 200) {
+    var m0 = [med(neu[0]), med(neu[1]), med(neu[2])], gray = (m0[0] + m0[1] + m0[2]) / 3;
+    for (c = 0; c < 3; c++) { var gc = Math.max(0.8, Math.min(1.2, gray / Math.max(0.02, m0[c]))); gain[c] = +gc.toFixed(3); e[c] = Math.log(Math.min(0.98, m0[c] * gc)) / Math.log(Math.max(0.02, m0[c])); }
   }
-  var m0 = pct(hL, 0.5), m = Math.max(0.02, Math.min(0.98, (m0 - lo) / Math.max(1, hi - lo)));
-  var gamma = Math.max(0.7, Math.min(1.4, Math.log(m) / Math.log(0.47)));
-  return { black: black, white: white, gamma: +gamma.toFixed(3),
-    stats: { p001: lo, p999: hi, median: m0, gain: gain, refs: cnt, method: method } };
+  // global gamma: luminansmedel mot 0,48 (gamma 0,65–1,5; ut = n^(1/gamma))
+  var mean = 0; for (i = 0; i < lum.length; i++) mean += lum[i]; mean /= Math.max(1, lum.length);
+  // ljusa, luftiga bilder ska inte mörkas ner kraftigt: mörkning först över 0,62 och högst till gamma 0,8
+  var mc = Math.max(0.02, Math.min(0.98, mean)), gamma = 1;
+  if (mc < 0.46) gamma = Math.min(1.5, Math.log(mc) / Math.log(0.48));
+  else if (mc > 0.62) gamma = Math.max(0.8, Math.log(mc) / Math.log(0.58));
+  lum.sort(function (u, v) { return u - v; });
+  var iqr = lum.length ? lum[(lum.length * 0.75) | 0] - lum[(lum.length * 0.25) | 0] : 1;
+  var narrow = iqr < 0.45, contrast = narrow ? +(0.08 + 0.04 * Math.min(1, (0.45 - iqr) / 0.2)).toFixed(3) : 0, vib = narrow ? 0.08 : 0;
+  var al = { black: black, white: white, exp: e.map(function (v) { return +(v / gamma).toFixed(4); }), gamma: +gamma.toFixed(3), contrast: contrast, vib: vib,
+    stats: { gain: gain, mean: +mean.toFixed(3), iqr: +iqr.toFixed(3), neutralPx: neu[0].length } };
+  // styrka: medelavvikelse (0–255) mellan original och resultat på ett stickprov
+  var lut = levelsLUT(al), sum = 0, k = 0;
+  for (i = 0; i < n; i += step * 4) { p = i << 2; for (c = 0; c < 3; c++) { sum += Math.abs(lut[c][d[p + c]] * 255 - d[p + c]); k++; } }
+  al.strength = +(sum / Math.max(1, k)).toFixed(2);
+  return al;
 }
-function levelsLUT(al) {
-  var out = [], ig = 1 / (al.gamma || 1);
+function levelsLUT(al, att) {
+  var out = [], con = al.contrast || 0; att = att || 0;
   for (var c = 0; c < 3; c++) {
     var t = new Float32Array(256), b = al.black[c], w = al.white[c], k = 1 / Math.max(1, w - b);
-    for (var v = 0; v < 256; v++) { var x = (v - b) * k; t[v] = x <= 0 ? 0 : x >= 1 ? 1 : Math.pow(x, ig); }
+    var ex = al.exp ? al.exp[c] : 1 / (al.gamma || 1);
+    if (att && ex < 1) ex = 1 - (1 - ex) * (1 - att); // brusig bild: lyft skuggorna mindre
+    for (var v = 0; v < 256; v++) {
+      var x = (v - b) * k; x = x <= 0 ? 0 : x >= 1 ? 1 : Math.pow(x, ex);
+      if (con) { var sc = x * x * (3 - 2 * x), prot = x > 0.85 ? 1 - (x - 0.85) / 0.15 : 1; x += con * (sc - x) * prot; } // mild S-kurva, skyddade högdagrar
+      t[v] = x;
+    }
     out.push(t);
   }
   return out;
@@ -989,7 +1057,7 @@ var FONTS = [
 function fontById(id) { for (var i = 0; i < FONTS.length; i++) if (FONTS[i].id === id) return FONTS[i]; return FONTS[0]; }
 var TEXT_PREF_KEY = 'klarbild.textFont.v1';
 function textPref() { try { var o = JSON.parse(localStorage.getItem(TEXT_PREF_KEY) || 'null'); if (o && o.font) return o; } catch (e) {} return { font: 'system', bold: true }; }
-function saveTextPref(t) { try { localStorage.setItem(TEXT_PREF_KEY, JSON.stringify({ font: t.font, bold: t.bold })); } catch (e) {} }
+function saveTextPref(t) { try { localStorage.setItem(TEXT_PREF_KEY, JSON.stringify({ font: t.font, bold: t.bold, ts: Date.now() })); } catch (e) {} }
 function titleFont(t, px) { return (t.bold === false ? '400 ' : '700 ') + px + 'px ' + fontById(t.font).stack; }
 /* Väntar tills typsnittet är redo innan canvas ritar (document.fonts) */
 function ensureFont(t) {
@@ -1208,6 +1276,108 @@ function JpegStream(W, H, quality) {
   };
 }
 
+/* =========================================================================
+   BRUS: analys (Immerkær-skattning i de plattaste blocken) + kantbevarande brusreducering
+   (självstyrt guided filter på luminans, starkare utjämning av Cb/Cr).
+   σ anges i 0–255-skala och gäller förhandsbildens upplösning (ref = långsida); vid export
+   skalas radier och σ med upplösningen.
+   ========================================================================= */
+function analyzeNoise(d, w, h) {
+  var t0 = Date.now(), st = Math.max(1, Math.round(Math.max(w, h) / 800)); // decimering (ingen medelvärdesbildning – behåller σ)
+  var W = Math.floor(w / st), H = Math.floor(h / st), n = W * H, Y = new Float32Array(n), CB = new Float32Array(n), CR = new Float32Array(n), x, y;
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+    var p = ((y * st) * w + x * st) << 2, r = d[p], g = d[p + 1], b = d[p + 2], i = y * W + x;
+    Y[i] = 0.299 * r + 0.587 * g + 0.114 * b; CB[i] = -0.168736 * r - 0.331264 * g + 0.5 * b; CR[i] = 0.5 * r - 0.418688 * g - 0.081312 * b;
+  }
+  var B = 8, bw = Math.floor((W - 2) / B), bh = Math.floor((H - 2) / B), blocks = [];
+  for (var by = 0; by < bh; by++) for (var bx = 0; bx < bw; bx++) {
+    var e = 0, m = 0, clip = 0;
+    for (y = 1 + by * B; y < 1 + by * B + B; y++) for (x = 1 + bx * B; x < 1 + bx * B + B; x++) {
+      var j = y * W + x, v = Y[j]; e += Math.abs(Y[j + 1] - v) + Math.abs(Y[j + W] - v); m += v; if (v < 3 || v > 252) clip++;
+    }
+    if (clip > B * B / 4) continue; // utfrätt/helt svart säger inget om brus
+    blocks.push({ x: 1 + bx * B, y: 1 + by * B, e: e, m: m / (B * B) / 255 });
+  }
+  function lap(A, bl) {
+    var s = 0, k = 0;
+    bl.forEach(function (o) {
+      for (var yy = o.y; yy < o.y + B; yy++) for (var xx = o.x; xx < o.x + B; xx++) {
+        var j = yy * W + xx;
+        var v = A[j - W - 1] - 2 * A[j - W] + A[j - W + 1] - 2 * A[j - 1] + 4 * A[j] - 2 * A[j + 1] + A[j + W - 1] - 2 * A[j + W] + A[j + W + 1];
+        s += Math.abs(v); k++;
+      }
+    });
+    return k ? Math.sqrt(Math.PI / 2) * (s / k) / 6 : 0;
+  }
+  function flattest(list, q) { var a = list.slice().sort(function (u, v) { return u.e - v.e; }); return a.slice(0, Math.max(4, Math.round(a.length * q))); }
+  var flat = flattest(blocks, 0.15), sh = blocks.filter(function (o) { return o.m < 0.3; }), mid = blocks.filter(function (o) { return o.m >= 0.3 && o.m < 0.75; });
+  /* σ redovisas som RGB-ekvivalent (oberoende brus per kanal): Y = 0,299R+0,587G+0,114B dämpar med 0,668,
+     Cb/Cr med 0,623/0,657. ySigma/cSigma (i Y/C-enheter) används internt. */
+  var yS = lap(Y, flat), cS = (lap(CB, flat) + lap(CR, flat)) / 2, KY = 0.668, KC = 0.64;
+  var res = { lumaSigma: +(yS / KY).toFixed(2), chromaSigma: +(cS / KC).toFixed(2), ySigma: +yS.toFixed(3), cSigma: +cS.toFixed(3),
+    shadowSigma: sh.length >= 8 ? +(lap(Y, flattest(sh, 0.15)) / KY).toFixed(2) : null, midSigma: mid.length >= 8 ? +(lap(Y, flattest(mid, 0.15)) / KY).toFixed(2) : null,
+    ref: Math.max(w, h), ms: Date.now() - t0 };
+  var s = Math.max(res.lumaSigma, Math.min((res.shadowSigma || 0) * 0.6, res.lumaSigma * 2)); // skuggbrus väger in, men textur i skuggor får inte ensam ge 'hög'
+  res.level = s < 3.5 ? 'low' : s < 8 ? 'medium' : 'high';
+  res.suggest = res.level === 'high' ? Math.min(80, Math.round(30 + s * 1.5)) : res.level === 'medium' ? 30 : 0;
+  return res;
+}
+/* Analys i full upplösning: mosaik av 4 utsnitt à 400×400 px ur originalet (ingen omsampling),
+   så att σ inte beror på webbläsarens nedskalning. */
+function analyzeNoiseNative(d) {
+  var W = d.naturalWidth || d.width, H = d.naturalHeight || d.height, S = 400;
+  if (W < 2 * S || H < 2 * S) return null;
+  var c = document.createElement('canvas'); c.width = c.height = 2 * S;
+  var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = false;
+  [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]].forEach(function (q, k) {
+    x.drawImage(d, Math.round(q[0] * W - S / 2), Math.round(q[1] * H - S / 2), S, S, (k % 2) * S, (k >> 1) * S, S, S);
+  });
+  var r = analyzeNoise(x.getImageData(0, 0, 2 * S, 2 * S).data, 2 * S, 2 * S); c.width = c.height = 1;
+  r.ref = Math.max(W, H); return r;
+}
+/* nivå/rapport från full upplösning; förhandsbildens egna σ sparas för förhandsvisningen */
+function combineNoise(prev, nat) {
+  if (!nat) { prev.prevY = prev.ySigma; prev.prevC = prev.cSigma; prev.prevRef = prev.ref; return prev; }
+  nat.prevY = prev.ySigma; nat.prevC = prev.cSigma; nat.prevRef = prev.ref; nat.ms += prev.ms; return nat;
+}
+/* σ (Y- resp. C-enheter) för en bild med långsida L: förhandsmätningen vid förhandsstorlek, originalmätningen vid full storlek, log-interpolerat däremellan */
+function noiseSig(nz, W, H) {
+  var L = Math.max(W, H), y = nz.ySigma || nz.lumaSigma * 0.668, c = nz.cSigma || nz.chromaSigma * 0.64;
+  if (nz.prevRef && nz.ref && nz.ref > nz.prevRef) {
+    var t = Math.max(0, Math.min(1, Math.log(L / nz.prevRef) / Math.log(nz.ref / nz.prevRef)));
+    return { y: nz.prevY + (y - nz.prevY) * t, c: nz.prevC + (c - nz.prevC) * t, f: L / nz.ref };
+  }
+  return { y: y, c: c, f: nz.ref ? L / nz.ref : 1 };
+}
+function noiseScale(noise, W, H) { return noise && noise.ref ? Math.max(1, Math.max(W, H) / (noise.prevRef || noise.ref)) : 1; }
+function nrAmount(st) { return st && st.nrOn && st.noise ? (st.denoise || 0) / 100 : 0; }
+/* självstyrt guided filter (He m.fl.) på en flyttalskanal; eps i kanalens skala² */
+function guidedSelf(I, w, h, r, eps) {
+  var n = I.length, mI = new Float32Array(I), mII = new Float32Array(n), i;
+  for (i = 0; i < n; i++) mII[i] = I[i] * I[i];
+  boxBlur(mI, w, h, r); boxBlur(mII, w, h, r);
+  for (i = 0; i < n; i++) { var v = mII[i] - mI[i] * mI[i], a = v / (v + eps); mII[i] = a; mI[i] = mI[i] - a * mI[i]; } // mII=a, mI=b
+  boxBlur(mII, w, h, r); boxBlur(mI, w, h, r);
+  for (i = 0; i < n; i++) I[i] = mII[i] * I[i] + mI[i];
+}
+function nrMargin(st, W, H) { if (!nrAmount(st)) return 0; var f = noiseScale(st.noise, W, H); return 4 * Math.max(1, Math.round(2 * f)) + 2; }
+/* Brusreducering på RGBA (in-place). f = upplösningsskala mot analysen. */
+function denoiseRGBA(d, w, h, st, full) { // full = [W, H] för hela bilden (band vid export)
+  var amt = nrAmount(st); if (!amt) return false;
+  var nz = st.noise, n = w * h, Y = new Float32Array(n), CB = new Float32Array(n), CR = new Float32Array(n), i, p;
+  for (i = 0, p = 0; i < n; i++, p += 4) { var r = d[p], g = d[p + 1], b = d[p + 2]; Y[i] = 0.299 * r + 0.587 * g + 0.114 * b; CB[i] = -0.168736 * r - 0.331264 * g + 0.5 * b; CR[i] = 0.5 * r - 0.418688 * g - 0.081312 * b; }
+  var FW = full ? full[0] : w, FH = full ? full[1] : h, f = noiseScale(nz, FW, FH), ns = noiseSig(nz, FW, FH), sY = Math.max(0.7, ns.y), sC = Math.max(0.7, ns.c), rY = Math.max(1, Math.round(2 * f)), rC = Math.max(2, Math.round(4 * f));
+  var kY = 0.8 + 2 * amt, kC = 2 + 8 * amt; // eps knutet till brusvariansen
+  guidedSelf(Y, w, h, rY, (kY * sY) * (kY * sY));
+  guidedSelf(CB, w, h, rC, (kC * sC) * (kC * sC)); guidedSelf(CR, w, h, rC, (kC * sC) * (kC * sC));
+  var mix = Math.min(1, 0.4 + amt);
+  for (i = 0, p = 0; i < n; i++, p += 4) {
+    var o0 = d[p], o1 = d[p + 1], o2 = d[p + 2], yy = Y[i], cb = CB[i], cr = CR[i];
+    d[p] = o0 + (yy + 1.402 * cr - o0) * mix; d[p + 1] = o1 + (yy - 0.344136 * cb - 0.714136 * cr - o1) * mix; d[p + 2] = o2 + (yy + 1.772 * cb - o2) * mix;
+  }
+  return true;
+}
+
 /* ---------- dela / spara ---------- */
 function canShareFiles(blob, name) {
   try {
@@ -1226,12 +1396,12 @@ function downloadBlob(blob, name) {
   var url = URL.createObjectURL(blob);
   var a = el('a', { href: url, download: name });
   document.body.append(a); a.click(); a.remove();
-  setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  setTimeout(function () { revokeSafe(url); }, 60000);
 }
 var resultUrls = {};
 function showResult(box, blob, name, kind, info) {
   box.innerHTML = '';
-  if (resultUrls[box.id]) URL.revokeObjectURL(resultUrls[box.id]);
+  if (resultUrls[box.id]) revokeSafe(resultUrls[box.id]);
   var url = resultUrls[box.id] = URL.createObjectURL(blob);
   var thumb;
   if (kind === 'video') {
@@ -1297,7 +1467,7 @@ function buildTextPanel(pane, t, onChange) {
   /* typsnittsväljare: rullbar rad med 'Aa' i respektive typsnitt + fet */
   var frow = el('div', { class: 'fontrow', role: 'radiogroup', 'aria-label': 'Typsnitt' });
   function markFont() { [].forEach.call(frow.children, function (b) { var on = b.getAttribute('data-f') === t.font; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); }); }
-  function fontChanged() { saveTextPref(t); markFont(); ensureFont(t).then(onChange); onChange(); }
+  function fontChanged() { saveTextPref(t); markFont(); if (typeof sessionDirty === 'function' && t === P.text) sessionDirty(); ensureFont(t).then(onChange); onChange(); }
   FONTS.forEach(function (f) {
     frow.append(el('button', { type: 'button', class: 'fontchip', role: 'radio', 'data-f': f.id, 'aria-label': f.name, title: f.name, onclick: function () { t.font = f.id; fontChanged(); } },
       [el('b', { text: 'Aa', style: 'font-family:' + f.stack.replace(/"/g, "'") + ';font-weight:' + (t.bold === false ? 400 : 700) }), el('span', { text: f.name })]));
@@ -1356,7 +1526,7 @@ function loadPhoto(file, done) {
   img.onload = function () {
     setTimeout(function () {
       try {
-        if (P.url) URL.revokeObjectURL(P.url);
+        var oldP = P.url; if (oldP) setTimeout(function () { revokeSafe(oldP); }, 3000);
         P.img = img; P.url = url; P.srcW = img.naturalWidth; P.srcH = img.naturalHeight;
         P.name = (file.name || 'bild').replace(/\.[^.]+$/, '').replace(/[^\w\-åäöÅÄÖ]+/g, '_').slice(0, 40) || 'bild';
         var s = fitSize(P.srcW, P.srcH, PREVIEW_MAX);
@@ -1367,7 +1537,7 @@ function loadPhoto(file, done) {
         $('#photoEmpty').classList.add('hidden');
         $('#photoStageTools').classList.remove('hidden');
         $('#photoResult').classList.add('hidden');
-        if (typeof applyPhotoDefault === 'function') applyPhotoDefault();
+        P.srcFile = file; if (typeof applyPhotoDefault === 'function') applyPhotoDefault();
         P.dirty = true; renderPhoto(); setPhotoZoom(0);
         buildPresetThumbs(); updatePhotoInfo();
         P.srcFile = file; if (done) done();
@@ -1378,6 +1548,15 @@ function loadPhoto(file, done) {
   img.onerror = function () { busy(false); URL.revokeObjectURL(url); toast('Kunde inte öppna bilden. Prova en JPEG-, HEIC- eller PNG-bild.'); };
   img.src = url;
 }
+/* brusreducerad förhandskälla, cachad per inställning */
+function previewSource(lk) {
+  var amt = nrAmount(lk); if (!amt) return P.prev;
+  var key = amt + '|' + lk.noise.lumaSigma;
+  if (P.nrCache && P.nrCache.key === key && P.nrCache.src === P.prev) return P.nrCache.out;
+  var d = new Uint8ClampedArray(P.prev.data.data); denoiseRGBA(d, P.prev.w, P.prev.h, lk);
+  var out = { data: new ImageData(d, P.prev.w, P.prev.h), L: computeLum(d, P.prev.w * P.prev.h) };
+  P.nrCache = { key: key, src: P.prev, out: out }; return out;
+}
 function requestPhotoRender(lookChanged) {
   if (lookChanged) P.dirty = true;
   if (P.pending) return; P.pending = true;
@@ -1386,7 +1565,7 @@ function requestPhotoRender(lookChanged) {
 function renderPhoto() {
   if (!P.prev) return;
   if (P.compare) { photoCtx.putImageData(P.prev.data, 0, 0); return; }
-  if (P.dirty) { processPixels(P.prev.data.data, P.out.data, P.prev.L, P.prev.clar, P.prev.w, P.prev.h, P.holdLook || P.look); P.dirty = false; }
+  if (P.dirty) { var lk = P.holdLook || P.look, sp = previewSource(lk); processPixels(sp.data.data, P.out.data, sp.L, P.prev.clar, P.prev.w, P.prev.h, lk); P.dirty = false; }
   photoCtx.putImageData(P.out, 0, 0);
   if (P.holdLook && P.holdBase) drawHoldSplit();
   drawTitle(photoCtx, P.prev.w, P.prev.h, P.text);
@@ -1444,7 +1623,7 @@ function renderNative(source, look, text, mime, quality, prog) {
   return (text && text.text ? ensureFont(text) : Promise.resolve()).then(function () { return getDrawable(source); }).then(function (d) {
     var W = d.naturalWidth || d.width, H = d.naturalHeight || d.height, big = W * H > CANVAS_MAX_PX, note = null;
     if (big && mime !== 'image/jpeg') { note = 'Bilden är större än webbläsarens gräns för ' + (mime === 'image/png' ? 'PNG' : 'WebP') + ' – den sparades som JPEG i full upplösning.'; mime = 'image/jpeg'; }
-    var sr = sharpRadius(W, H), m = sr + 3, bandH = Math.max(16, Math.floor((BAND_PX / W - 2 * m) / 16) * 16);
+    var sr = sharpRadius(W, H), m = sr + 3 + nrMargin(look, W, H), nf = noiseScale(look.noise, W, H), bandH = Math.max(16, Math.floor((BAND_PX / W - 2 * m) / 16) * 16);
     var bc = document.createElement('canvas'); bc.width = W; bc.height = Math.min(H, bandH) + 2 * m;
     var bx = bc.getContext('2d', { willReadFrequently: true }); bx.imageSmoothingEnabled = false;
     var out = null, ox = null, enc = null, nb = Math.ceil(H / bandH), passes = look.clarity ? 2 : 1, step = 0;
@@ -1461,7 +1640,8 @@ function renderNative(source, look, text, mime, quality, prog) {
     });
     for (y = 0; y < H; y += bandH) (function (y0) { chain = chain.then(function () {
       var bh = Math.min(bandH, H - y0), top = Math.max(0, y0 - m), bot = Math.min(H, y0 + bh + m), hh = bot - top;
-      var id = read(top, hh), L = computeLum(id.data, W * hh), SB = null;
+      var id = read(top, hh); denoiseRGBA(id.data, W, hh, look, [W, H]);
+      var L = computeLum(id.data, W * hh), SB = null;
       if (look.sharpness !== 0 && sr > 1) { SB = new Float32Array(L); boxBlur(SB, W, hh, sr); }
       processRegion(id.data, id.data, L, SB, clar, W, hh, look, 0, top, W, H, y0 - top, y0 - top + bh);
       if (!big) ox.putImageData(id, 0, top, 0, y0 - top, W, bh);
@@ -1697,7 +1877,7 @@ function seekLatest(t) {
 function loadVideo(file) {
   if (!file) return;
   pauseVideo();
-  if (V.url) URL.revokeObjectURL(V.url);
+  var oldV = V.url; if (oldV) setTimeout(function () { revokeSafe(oldV); }, 3000); // först när videon bytt källa
   V.ready = false; V.url = URL.createObjectURL(file);
   V.name = (file.name || 'film').replace(/\.[^.]+$/, '').replace(/[^\w\-åäöÅÄÖ]+/g, '_').slice(0, 40) || 'film';
   busy(true, 'Öppnar film…');
@@ -1919,32 +2099,62 @@ var presetGrid = el('div', { class: 'presets' }), photoAdjust;
 })();
 /* --- Foto: Justera --- */
 photoAdjust = buildAdjustPanel(pane('p-adjust'), P.look, function () { requestPhotoRender(true); }, {
-  onReset: function () { setAutoLevels(false, true); },
+  onReset: function () { setAutoLevels(false, true); P.look.nrOn = false; if (typeof syncNoiseUI === 'function') syncNoiseUI(); },
   onPreset: function (id) { P.preset = id; [].forEach.call(presetGrid.children, function (c) { c.classList.toggle('on', c.getAttribute('data-p') === id); }); }
 });
 /* --- Foto: Autonivåer (överst i Justera) --- */
 var AUTO_NEW_KEY = 'klarbild.autoLevelsNew.v1';
 function autoNewOn() { try { return localStorage.getItem(AUTO_NEW_KEY) === '1'; } catch (e) { return false; } }
 var autoBtn = el('button', { type: 'button', class: 'btn autobtn', id: 'autoBtn', 'aria-pressed': 'false', html: ICON.wand + '<span>Autonivåer</span>',
-  onclick: function () { var was = !!P.look.autoLevels; setAutoLevels(true); if (P.look.autoLevels) toast(was ? 'Autonivåer omräknade.' : 'Autonivåer på – reglagen fungerar ovanpå.'); } });
+  onclick: function () { var was = !!P.look.autoLevels; setAutoLevels(true); var al = P.look.autoLevels; if (!al) { toast('Autonivåer kunde inte beräknas för den här bilden.'); return; } toast(al.strength < 3 ? 'Bilden är redan välbalanserad – liten justering' : (was ? 'Autonivåer omräknade.' : 'Autonivåer på – reglagen fungerar ovanpå.')); } });
 var autoOff = el('button', { type: 'button', class: 'autooff hidden', id: 'autoOff', 'aria-label': 'Stäng av Autonivåer', text: '✕',
   onclick: function () { setAutoLevels(false); toast('Autonivåer av.'); } });
 function setAutoLevels(on, quiet) {
-  if (on && P.prev) P.look.autoLevels = computeAutoLevels(P.prev.data.data, P.prev.w * P.prev.h);
+  if (on && P.prev) { var al = computeAutoLevels(P.prev.data.data, P.prev.w * P.prev.h); if (al) P.look.autoLevels = al; else delete P.look.autoLevels; }
   else delete P.look.autoLevels;
   var a = !!P.look.autoLevels;
   autoBtn.classList.toggle('on', a); autoBtn.setAttribute('aria-pressed', a ? 'true' : 'false'); autoOff.classList.toggle('hidden', !a);
   if (!quiet) requestPhotoRender(true);
 }
 (function () { var p = panes['p-adjust'], h = p.querySelector('h3'); h.after(el('div', { class: 'autorow' }, [autoBtn, autoOff])); })();
+/* --- Foto: brus – chip + Brusreducering (av som standard) --- */
+var noiseChip = el('button', { type: 'button', class: 'noisechip hidden', id: 'noiseChip', text: 'Brusig bild – skärpan anpassad',
+  onclick: function () { var n = P.look.noise; toast('Brus uppmätt (σ ≈ ' + (n ? String(n.lumaSigma).replace('.', ',') : '?') + '). Skärpa och klarhet dämpas i plana ytor. Slå på Brusreducering för att jämna ut bruset.', 6000); } });
+var nrCb = el('input', { type: 'checkbox', id: 'nrToggle', 'aria-label': 'Brusreducering på' });
+var nrSlider = makeSlider({ label: 'Styrka', min: 0, max: 100, def: 0, value: 0, noMod: true, fmt: function (v) { return String(Math.round(v)); }, onInput: function (v) { P.look.denoise = v; if (v && !nrCb.checked) { nrCb.checked = true; P.look.nrOn = true; } requestPhotoRender(true); } });
+nrSlider.el.id = 'nrSliderRow';
+nrCb.addEventListener('change', function () { P.look.nrOn = nrCb.checked; if (nrCb.checked && !P.look.denoise) { P.look.denoise = (P.look.noise && P.look.noise.suggest) || 30; nrSlider.set(P.look.denoise); } requestPhotoRender(true); });
+function syncNoiseUI() {
+  var n = P.look.noise; noiseChip.classList.toggle('hidden', !(n && n.level === 'high'));
+  nrCb.checked = !!P.look.nrOn; nrSlider.set(P.look.denoise || 0);
+}
+function analyzePhotoNoise() {
+  if (!P.prev) return; var pv = P.prev, src = P.srcFile;
+  P.look.noise = combineNoise(analyzeNoise(pv.data.data, pv.w, pv.h), null);
+  P.look.nrOn = false; P.look.denoise = P.look.noise.suggest || 0; P.nrCache = null; syncNoiseUI();
+  if (src) getDrawable(src).then(function (d) { // mätning i full upplösning (asynkront, ~20–60 ms)
+    var nat = analyzeNoiseNative(d); if (d.close) d.close();
+    if (!nat || P.prev !== pv) return;
+    var on = P.look.nrOn, nz = combineNoise(P.look.noise, nat); P.look.noise = nz;
+    if (!on) P.look.denoise = nz.suggest || P.look.denoise; P.nrCache = null; syncNoiseUI(); requestPhotoRender(true);
+  }).catch(function () {});
+}
+(function () {
+  var p = panes['p-adjust'], row = p.querySelector('.autorow'); row.after(noiseChip);
+  var block = el('div', { class: 'nrblock' }, [el('div', { class: 'row' }, [el('span', { class: 'lbl', text: 'Brusreducering' }), el('label', { class: 'switch' }, [nrCb, el('span')])]), nrSlider.el]);
+  var sliders = p.querySelectorAll('.ctl'); var last = sliders[sliders.length - 1]; (last || row).after(block);
+})();
 /* --- Foto: Standardinställningar --- */
 var DEF_KEY = 'klarbild.photoDefault.v1';
 function loadPhotoDefault() { try { var d = JSON.parse(localStorage.getItem(DEF_KEY) || 'null'); return d && d.look ? d : null; } catch (e) { return null; } }
 function applyPhotoDefault() {
+  analyzePhotoNoise(); // brusanalys per bild (< 100 ms)
   setAutoLevels(autoNewOn(), true); // Autonivåer är per bild: räknas om för varje ny bild
   var d = loadPhotoDefault(); if (!d) return false;
   var nl = blankLook(); ADJ.forEach(function (a) { if (typeof d.look[a.k] === 'number') nl[a.k] = d.look[a.k]; });
-  photoAdjust.apply(nl, d.preset && PRESETS[d.preset] ? d.preset : null); return true;
+  photoAdjust.apply(nl, d.preset && PRESETS[d.preset] ? d.preset : null);
+  if (d.textPos && !P.text.text) { P.text.pos = d.textPos.pos || 'bottom'; P.text.x = d.textPos.x == null ? null : d.textPos.x; P.text.y = d.textPos.y == null ? null : d.textPos.y; if (typeof applyTextSettings === 'function') applyTextSettings(P.text); }
+  return true;
 }
 (function () {
   var p = panes['p-adjust'], st = el('p', { class: 'info', id: 'defStatus' });
@@ -1952,7 +2162,7 @@ function applyPhotoDefault() {
   p.append(el('div', { class: 'btnrow' }, [
     el('button', { type: 'button', class: 'btn', id: 'saveDefBtn', text: 'Spara som standard', onclick: function () {
       var lk = {}; ADJ.forEach(function (a) { lk[a.k] = P.look[a.k]; });
-      try { localStorage.setItem(DEF_KEY, JSON.stringify({ look: lk, preset: P.preset || null })); toast('Sparat som standard för nya bilder.'); }
+      try { localStorage.setItem(DEF_KEY, JSON.stringify({ look: lk, preset: P.preset || null, textPos: { pos: P.text.pos, x: P.text.x, y: P.text.y } })); toast('Sparat som standard för nya bilder.'); }
       catch (e) { toast('Kunde inte spara (privat surfläge?).'); } upd(); } }),
     el('button', { type: 'button', class: 'btn', id: 'resetDefBtn', text: 'Återställ standard', onclick: function () {
       try { localStorage.removeItem(DEF_KEY); } catch (e) {} photoAdjust.apply(blankLook(), 'original'); toast('Standard återställd.'); upd(); } })
@@ -2100,7 +2310,14 @@ function photoCenterOn(c) {
 }
 var photoRefitting = false;
 var photoRefitAt = 0;
-$('#photoWrap').addEventListener('scroll', function () { if (P.zoom && !photoRefitting && Date.now() - photoRefitAt > 500) P.viewC = photoViewCenter(); }, { passive: true });
+function photoWrapSz() { var w = $('#photoWrap'); return w.clientWidth + 'x' + w.clientHeight; }
+var photoSz = '';
+/* Spara vymitten vid användarens scroll – men inte när scrollen beror på att ytan just ändrat storlek (rotation: webbläsaren klampar scrollen före refit) */
+$('#photoWrap').addEventListener('scroll', function () {
+  var sz = photoWrapSz(); if (!photoSz) photoSz = sz;
+  if (sz !== photoSz) return;
+  if (P.zoom && !photoRefitting && Date.now() - photoRefitAt > 500) P.viewC = photoViewCenter();
+}, { passive: true });
 function refit() {
   var w = $('#photoWrap');
   if (P.zoom) {
@@ -2108,9 +2325,9 @@ function refit() {
     photoRefitting = true;
     card.classList.remove('zoomed'); fitDisplay(photoCanvas, w, false); card.classList.add('zoomed'); // samma anpassade skala som vid zoomstart
     fitDisplay(photoCanvas, w, z); photoCenterOn(c);
-    P.viewC = c; photoRefitAt = Date.now(); requestAnimationFrame(function () { photoRefitting = false; });
+    P.viewC = c; photoRefitAt = Date.now(); photoSz = photoWrapSz(); requestAnimationFrame(function () { photoRefitting = false; });
   }
-  else fitDisplay(photoCanvas, w, false);
+  else { fitDisplay(photoCanvas, w, false); photoSz = photoWrapSz(); }
   fitDisplay(videoCanvas, $('#videoWrap'));
 }
 setPlayIcon();
@@ -2270,24 +2487,49 @@ function galAdd(rec) { return galEncode(rec).then(function (o) { return galTx('r
 function galAll() { return galTx('readonly', function (st) { return st.getAll(); }).then(function (a) { return (a || []).map(galDecode).sort(function (x, y) { return y.ts - x.ts; }); }); }
 function galGet(id) { return galTx('readonly', function (st) { return st.get(id); }).then(galDecode); }
 function galDel(id) { return galTx('readwrite', function (st) { st.delete(id); }); }
-function makeThumb(blob) {
-  return new Promise(function (res) {
-    var url = URL.createObjectURL(blob), img = new Image();
-    img.onload = function () {
-      var w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, 320 / Math.max(w, h));
-      var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-      c.toBlob(function (t) { res({ thumb: t, w: w, h: h }); }, 'image/jpeg', 0.8);
-    };
-    img.onerror = function () { URL.revokeObjectURL(url); res({ thumb: null, w: 0, h: 0 }); };
-    img.src = url;
+/* Miniatyr (≤320 px). Robust för iOS: createImageBitmap med nedskalning, annars <img>.decode() + canvas.
+   Tom (helt svart/transparent) eller misslyckad avkodning ger nytt försök på andra vägen; sist thumb:null (platshållare). */
+function decodeImgEl(blob) {
+  return new Promise(function (res, rej) {
+    var url = URL.createObjectURL(blob), img = new Image(), done = false;
+    function ok() { if (done) return; done = true; res({ d: img, close: function () { img.src = ''; URL.revokeObjectURL(url); } }); }
+    function bad() { if (done) return; done = true; URL.revokeObjectURL(url); rej(new Error('decode')); }
+    img.onload = ok; img.onerror = bad; img.src = url;
+    if (img.decode) img.decode().then(ok, function () { setTimeout(function () { if (!done && img.complete && img.naturalWidth) ok(); }, 50); });
   });
+}
+function thumbVia(blob, way) {
+  var max = 320;
+  var dp = way === 'bitmap'
+    ? createImageBitmap(blob, { imageOrientation: 'from-image' }).then(function (b) { return { d: b, close: function () { b.close && b.close(); } }; })
+    : decodeImgEl(blob);
+  return dp.then(function (o) {
+    var d = o.d, w = d.naturalWidth || d.width, h = d.naturalHeight || d.height;
+    if (!w || !h) { o.close(); throw new Error('size'); }
+    var s = Math.min(1, max / Math.max(w, h)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+    var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(d, 0, 0, c.width, c.height); o.close();
+    var px = x.getImageData(0, 0, c.width, c.height).data, lit = 0;
+    for (var i = 0; i < px.length; i += 4 * 97) if (px[i + 3] && (px[i] | px[i + 1] | px[i + 2])) { lit++; if (lit > 3) break; }
+    if (lit <= 3) throw new Error('blank'); // iOS kan ge tom canvas vid minnesbrist
+    return new Promise(function (res, rej) { c.toBlob(function (t) { c.width = c.height = 1; t ? res({ thumb: t, w: w, h: h }) : rej(new Error('toBlob')); }, 'image/jpeg', 0.8); });
+  });
+}
+function makeThumb(blob) {
+  var first = window.createImageBitmap ? thumbVia(blob, 'bitmap') : Promise.reject();
+  return first.catch(function () { return thumbVia(blob, 'img'); })
+    .catch(function (e) { console.warn('Miniatyr misslyckades', e); return { thumb: null, w: 0, h: 0 }; });
+}
+/* platshållare + nytt försök för poster utan miniatyr */
+function regenThumb(r) {
+  return makeThumb(r.blob).then(function (t) { if (!t.thumb) throw new Error('thumb'); r.thumb = t.thumb; if (t.w) { r.w = t.w; r.h = t.h; } return galPut(r).then(function () { return r; }); });
 }
 var galStored = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
 function galleryStore(blob, name, box) {
   if (galStored && galStored.get(blob)) { markSaved(box); return Promise.resolve(galStored.get(blob)); }
   return makeThumb(blob).then(function (t) {
-    var rec = { blob: blob, name: name, type: blob.type || 'image/jpeg', size: blob.size, w: t.w, h: t.h, thumb: t.thumb, ts: Date.now() };
+    var rec = { blob: blob, name: name, type: blob.type || 'image/jpeg', size: blob.size, w: t.w, h: t.h, thumb: t.thumb, ts: Date.now(),
+      edit: P.lastExport && P.lastExport.blob === blob ? { look: JSON.parse(JSON.stringify(P.look)), text: textMeta(P.text) } : null };
     return galAdd(rec);
   }).then(function (id) {
     if (galStored) galStored.set(blob, id);
@@ -2330,18 +2572,20 @@ galPane.append(el('h3', { text: 'Sparade' }), el('div', { class: 'galtools' }, [
 function fmtDate(ts) { var d = new Date(ts), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
 function refreshGallery() {
   return galAll().then(function (a) {
-    galUrls.forEach(function (u) { URL.revokeObjectURL(u); }); galUrls = [];
+    var old = galUrls; galUrls = []; setTimeout(function () { old.forEach(function (u) { revokeSafe(u); }); }, 3000); // släpp gamla URL:er först när nya bilder visas
     galGrid.innerHTML = '';
     var bytes = a.reduce(function (t, r) { return t + (r.size || 0) + (r.thumb ? r.thumb.size : 0) + (r.versions || []).reduce(function (s, v) { return s + (v.blob ? v.blob.size : 0) + (v.thumb ? v.thumb.size : 0); }, 0); }, 0);
     galUsage.textContent = a.length + (a.length === 1 ? ' bild' : ' bilder') + ' · ca ' + (bytes / 1048576).toFixed(1).replace('.', ',') + ' MB';
     galClear.disabled = !a.length;
     if (!a.length) { galGrid.append(el('p', { class: 'note galempty', text: 'Inga sparade bilder än. Exportera en bild och tryck Dela eller Spara fil.' })); return a; }
     a.forEach(function (r) {
-      var u = URL.createObjectURL(r.thumb || r.blob); galUrls.push(u);
+      var u = r.thumb ? URL.createObjectURL(r.thumb) : null; if (u) galUrls.push(u);
       var it = el('button', { type: 'button', class: 'galitem' + (galSel.ids[r.id] ? ' sel' : ''), 'data-id': r.id, 'aria-label': 'Öppna ' + r.name, onclick: function () { if (galSel.on) galToggle(r.id, it); else openViewer(r.id); } },
-        [el('img', { src: u, alt: '', draggable: 'false' }), el('i', { class: 'galcheck', 'aria-hidden': 'true' }), r.versions && r.versions.length ? el('em', { class: 'galedited', text: 'Redigerad' }) : null,
+        [u ? el('img', { src: u, alt: '', draggable: 'false' }) : el('div', { class: 'galph', text: 'Förhandsvisning saknas' }), el('i', { class: 'galcheck', 'aria-hidden': 'true' }), r.versions && r.versions.length ? el('em', { class: 'galedited', text: 'Redigerad' }) : null,
          el('span', { text: (r.type.split('/')[1] || '').replace('jpeg', 'jpg').toUpperCase() + ' · ' + r.w + '×' + r.h })]);
       galGrid.append(it);
+      var im = it.querySelector('img'); if (im) im.onerror = function () { im.replaceWith(el('div', { class: 'galph', text: 'Förhandsvisning saknas' })); thumbRetry(r, it); };
+      if (!u) thumbRetry(r, it);
     });
     if (window.galSelSync) galSelSync(a);
     return a;
@@ -2369,7 +2613,7 @@ function vwSetZoom(z, cx, cy) {
 function openViewer(id) {
   galGet(id).then(function (r) {
     if (!r) { toast('Bilden finns inte längre.'); refreshGallery(); return; }
-    vwRec = r; vwZ = 1; if (vwUrl) URL.revokeObjectURL(vwUrl); vwUrl = URL.createObjectURL(r.blob);
+    vwRec = r; vwZ = 1; var oldU = vwUrl; vwUrl = URL.createObjectURL(r.blob); if (oldU) setTimeout(function () { revokeSafe(oldU); }, 0);
     vwImg.onload = vwFit; vwImg.src = vwUrl;
     vwInfo.innerHTML = ''; vwInfo.append(el('b', { text: 'Sparat ' + fmtDate(r.ts) }), el('span', { text: (r.type.split('/')[1] || '').replace('jpeg', 'jpg').toUpperCase() + ' · ' + r.w + '×' + r.h + ' · ' + fmtBytes(r.size) }));
     vwBar.innerHTML = '';
@@ -2385,6 +2629,7 @@ function openViewer(id) {
       el('button', { type: 'button', class: 'btn danger', id: 'vwDel', html: ICON.trash + 'Ta bort', onclick: function () {
         confirmDialog('Ta bort bilden från Sparade? Filer du redan har sparat i Bilder eller Filer påverkas inte.', 'Ta bort').then(function (ok) { if (!ok) return;
         galDel(r.id).then(function () { closeViewer(); refreshGallery(); toast('Borttagen från Sparade.'); }); }); } }));
+    Array.prototype.slice.call(vwBar.childNodes).forEach(function (n) { if (n.nodeType === 3) n.remove(); }); // append(null) gav texten "null"
     viewer.classList.remove('hidden'); document.body.classList.add('viewer-open');
   });
 }
@@ -2428,6 +2673,24 @@ function confirmDialog(msg, okText) {
   });
 }
 
+/* textens inställningar (normaliserad position m.m.) utan interna fält */
+function textMeta(t) { if (!t) return null; return { text: t.text, size: t.size, color: t.color, pos: t.pos, x: t.x, y: t.y, shadow: t.shadow, font: t.font, bold: t.bold }; }
+
+/* ett automatiskt nytt försök; misslyckas det visas en Försök igen-knapp i rutan */
+function thumbRetry(r, it, manual) {
+  var ph = it.querySelector('.galph'); if (ph) ph.textContent = 'Skapar förhandsvisning…';
+  setTimeout(function () {
+    regenThumb(r).then(function () {
+      var u = URL.createObjectURL(r.thumb); galUrls.push(u); var p2 = it.querySelector('.galph');
+      if (p2) p2.replaceWith(el('img', { src: u, alt: '', draggable: 'false' }));
+    }).catch(function () {
+      var p3 = it.querySelector('.galph'); if (!p3) return; p3.textContent = '';
+      p3.append(document.createTextNode('Förhandsvisning saknas'), el('span', { class: 'galretry', role: 'button', tabindex: '0', text: 'Försök igen',
+        onclick: function (e) { e.stopPropagation(); thumbRetry(r, it, true); } }));
+    });
+  }, manual ? 0 : 300);
+}
+
 /* =========================================================================
    BATCH – markera upp till 20 sparade bilder och redigera dem i följd
    ========================================================================= */
@@ -2436,11 +2699,11 @@ function galPut(rec) { return galEncode(rec).then(function (o) { return galTx('r
 var VER_MAX = 10; // tidigare versioner per bild (originalet räknas och behålls alltid)
 function verPush(r) {
   r.versions = r.versions || [];
-  r.versions.push({ blob: r.blob, thumb: r.thumb, w: r.w, h: r.h, ts: r.edited || r.ts, label: r.curLabel || (r.versions.length ? 'Version' : 'Original'), orig: !r.versions.length });
+  r.versions.push({ blob: r.blob, thumb: r.thumb, w: r.w, h: r.h, ts: r.edited || r.ts, label: r.curLabel || (r.versions.length ? 'Version' : 'Original'), orig: !r.versions.length, edit: r.edit || null });
   while (r.versions.length > VER_MAX) r.versions.splice(1, 1); // äldsta mellanversion tas bort
 }
 function setCurrent(r, v, label) {
-  r.blob = v.blob; r.size = v.blob.size; r.w = v.w; r.h = v.h; r.thumb = v.thumb; r.edited = Date.now(); r.curLabel = label || v.label;
+  r.blob = v.blob; r.size = v.blob.size; r.w = v.w; r.h = v.h; r.thumb = v.thumb; r.edited = Date.now(); r.curLabel = label || v.label; r.edit = v.edit || null;
   return (r.thumb ? Promise.resolve() : makeThumb(r.blob).then(function (t) { r.thumb = t.thumb; r.w = t.w; r.h = t.h; }));
 }
 function galUndo(id) { // tillbaka till närmast föregående version (den aktuella kastas)
@@ -2467,7 +2730,7 @@ var selAll = el('button', { type: 'button', class: 'btn', id: 'selAll', text: 'M
   if (over) toast('Du kan markera högst ' + BATCH_MAX + ' bilder åt gången.'); updSel(); } });
 var selNone = el('button', { type: 'button', class: 'btn', id: 'selNone', text: 'Avmarkera', onclick: function () {
   galSel.ids = {}; galSel.n = 0; [].forEach.call(galGrid.querySelectorAll('.galitem.sel'), function (i) { i.classList.remove('sel'); }); updSel(); } });
-var batchBtn = el('button', { type: 'button', class: 'btn primary', id: 'batchBtn', text: 'Batchredigera', onclick: function () { openBatchSheet(); } });
+var batchBtn = el('button', { type: 'button', class: 'btn primary', id: 'batchBtn', text: 'Redigera', onclick: function () { openBatchSheet(); } }); // kontextuell genväg i Markera-läge
 selBar.append(selToggle, selCount, selAll, selNone, batchBtn);
 galGrid.parentNode.insertBefore(selBar, galGrid);
 function setSelMode(on) {
@@ -2489,7 +2752,9 @@ function galToggle(id, it) {
 }
 function updSel() {
   selCount.textContent = galSel.on ? galSel.n + ' av max ' + BATCH_MAX + ' markerade' : '';
-  batchBtn.disabled = !galSel.n;
+  batchBtn.disabled = !galSel.n; batchBtn.textContent = galSel.n ? 'Redigera ' + galSel.n : 'Redigera';
+  batchBtn.classList.toggle('hidden', !galSel.on);
+  if (window.batchJustBtn) batchJustBtn.textContent = 'Batchredigera (' + galSel.n + ' valda)';
 }
 window.galSelSync = function (a) { // ta bort markeringar för bilder som inte finns längre
   var ex = {}; a.forEach(function (r) { ex[r.id] = 1; });
@@ -2498,35 +2763,112 @@ window.galSelSync = function (a) { // ta bort markeringar för bilder som inte f
 };
 updSel();
 /* --- batch-ark --- */
-function openBatchSheet() {
+function openBatchSheet(opts) {
+  opts = opts || {};
   var ids = Object.keys(galSel.ids).map(Number); if (!ids.length) return;
-  var ov = el('div', { class: 'cdlg', id: 'batchSheet' }), box = el('div', { class: 'cdlg-box bsheet' }), mode = 'preset', presetId = 'crystal';
+  var ov = el('div', { class: 'cdlg', id: 'batchSheet' }), box = el('div', { class: 'cdlg-box bsheet' }), mode = opts.mode || 'preset', presetId = 'crystal';
   var custom = blankLook(), titleText = el('textarea', { class: 'input', rows: 1, id: 'batchTitle', placeholder: 'Valfri rubrik (lämna tomt för ingen)', 'aria-label': 'Rubrik' });
   var modeSeg = el('div', { class: 'seg full', id: 'batchMode' }), body = el('div', { class: 'bbody' });
   [['preset', 'Stil'], ['current', 'Nuvarande'], ['custom', 'Egna reglage']].forEach(function (m) {
-    modeSeg.append(el('button', { type: 'button', 'data-m': m[0], class: m[0] === mode ? 'on' : '', text: m[1], onclick: function () { mode = m[0]; [].forEach.call(modeSeg.children, function (b) { b.classList.toggle('on', b.getAttribute('data-m') === mode); }); draw(); } }));
+    modeSeg.append(el('button', { type: 'button', 'data-m': m[0], class: m[0] === mode ? 'on' : '', text: m[1], onclick: function () { mode = m[0]; [].forEach.call(modeSeg.children, function (b) { b.classList.toggle('on', b.getAttribute('data-m') === mode); }); draw(); schedule(); } }));
   });
   var presetBox = el('div', { class: 'chips' });
-  Object.keys(PRESETS).forEach(function (id) { presetBox.append(el('button', { type: 'button', class: 'chip' + (id === presetId ? ' on' : ''), 'data-p': id, text: PRESETS[id].name, onclick: function () { presetId = id; [].forEach.call(presetBox.children, function (c) { c.classList.toggle('on', c.getAttribute('data-p') === id); }); } })); });
-  var autoCb = el('input', { type: 'checkbox', id: 'batchAuto', 'aria-label': 'Autonivåer' });
+  Object.keys(PRESETS).forEach(function (id) { presetBox.append(el('button', { type: 'button', class: 'chip' + (id === presetId ? ' on' : ''), 'data-p': id, text: PRESETS[id].name, onclick: function () { presetId = id; [].forEach.call(presetBox.children, function (c) { c.classList.toggle('on', c.getAttribute('data-p') === id); }); schedule(); } })); });
+  var autoCb = el('input', { type: 'checkbox', id: 'batchAuto', 'aria-label': 'Autonivåer' }); autoCb.checked = !!P.look.autoLevels && mode === 'current';
+  autoCb.addEventListener('change', schedule);
   var autoRow = el('div', { class: 'row' }, [el('span', { class: 'lbl', html: ICON.wand + ' Autonivåer <small>(räknas per bild, kan kombineras)</small>' }), el('label', { class: 'switch' }, [autoCb, el('span')])]);
-  var curInfo = el('p', { class: 'info', text: 'Använder reglagen som de står i Foto just nu: ' + ADJ.filter(function (a) { return P.look[a.k]; }).map(function (a) { return a.label + ' ' + (P.look[a.k] > 0 ? '+' : '') + P.look[a.k]; }).join(', ') });
-  if (!ADJ.some(function (a) { return P.look[a.k]; })) curInfo.textContent = 'Reglagen i Foto står på noll just nu – välj en stil eller egna reglage.';
-  var customPane = el('div', { class: 'pane bcustom' }); buildAdjustPanel(customPane, custom, function () {}, {});
+  var curInfo = el('p', { class: 'info', text: 'Använder reglagen som de står i Justera just nu: ' + ADJ.filter(function (a) { return P.look[a.k]; }).map(function (a) { return a.label + ' ' + (P.look[a.k] > 0 ? '+' : '') + P.look[a.k]; }).join(', ') });
+  if (!ADJ.some(function (a) { return P.look[a.k]; })) curInfo.textContent = 'Reglagen i Justera står på noll just nu – välj en stil eller egna reglage.';
+  var customPane = el('div', { class: 'pane bcustom' }); buildAdjustPanel(customPane, custom, schedule, {});
+  titleText.addEventListener('input', schedule);
   function draw() { body.innerHTML = ''; body.append(mode === 'preset' ? presetBox : mode === 'current' ? curInfo : customPane); }
+  function curLook() { var l = mode === 'preset' ? presetLook(presetId) : mode === 'current' ? JSON.parse(JSON.stringify(P.look)) : JSON.parse(JSON.stringify(custom)); delete l.autoLevels; return l; }
+  function curText() { var t = titleText.value.trim(); return t ? Object.assign(defaultText(), { text: t }) : null; }
+  /* ---- levande förhandsvisningar av de markerade bilderna ---- */
+  var strip = el('div', { class: 'bstrip', id: 'batchStrip', role: 'list', 'aria-label': 'Markerade bilder' }), cells = {}, src = {}, gen = 0, timer = 0;
+  var head = el('h3', {});
+  function setHead() { head.textContent = 'Batchredigera ' + ids.length + (ids.length === 1 ? ' bild' : ' bilder'); }
+  setHead();
+  ids.forEach(function (id) {
+    var cv = el('canvas', { class: 'bprev', width: 4, height: 3 }), ph = el('span', { class: 'bph', text: 'Laddar…' });
+    var cell = el('div', { class: 'bcell', role: 'listitem', 'data-id': id }, [cv, ph,
+      el('button', { type: 'button', class: 'bx', 'aria-label': 'Ta bort ur urvalet', text: '✕', onclick: function (e) { e.stopPropagation(); removeId(id); } })]);
+    cell.addEventListener('click', function () { if (src[id]) enlarge(id); });
+    cells[id] = { cell: cell, cv: cv, ph: ph }; strip.append(cell);
+  });
+  function removeId(id) {
+    ids = ids.filter(function (x) { return x !== id; });
+    var it = galGrid.querySelector('.galitem[data-id="' + id + '"]'); galSetSel(id, it, false); updSel();
+    cells[id].cell.remove(); delete cells[id]; delete src[id]; setHead();
+    if (!ids.length) { close(); toast('Inga bilder markerade.'); }
+  }
+  // källa i förhandsstorlek (~400 px) + Autonivåer räknad som i slutresultatet (på 1600 px), cachad
+  function loadSrc(id) {
+    if (src[id]) return Promise.resolve(src[id]);
+    return galGet(id).then(function (r) {
+      return getDrawable(r.blob).then(function (d) {
+        var W = d.naturalWidth || d.width, H = d.naturalHeight || d.height, s = fitSize(W, H, 400);
+        var c = document.createElement('canvas'); c.width = s.w; c.height = s.h;
+        var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingQuality = 'high'; x.drawImage(d, 0, 0, s.w, s.h);
+        var id0 = x.getImageData(0, 0, s.w, s.h), L = computeLum(id0.data, s.w * s.h);
+        var nz = combineNoise(analyzeNoise(id0.data, s.w, s.h), analyzeNoiseNative(d)); if (d.close) d.close(); // brus per bild (σ för miniatyrstorleken + originalet)
+        src[id] = { data: id0, L: L, clar: buildClarity(L, s.w, s.h), w: s.w, h: s.h, W: W, H: H, blob: r.blob, al: null, noise: nz, nr: null };
+        return src[id];
+      });
+    });
+  }
+  function autoFor(id) { var o = src[id]; if (o.al) return Promise.resolve(o.al); return autoLevelsFor(o.blob).then(function (al) { o.al = al; return al; }); }
+  function renderOne(id, g) {
+    return loadSrc(id).then(function (o) {
+      if (g !== gen || !cells[id]) return;
+      return (autoCb.checked ? autoFor(id) : Promise.resolve(null)).then(function (al) {
+        if (g !== gen || !cells[id]) return;
+        var lk = curLook(); if (al) lk.autoLevels = al; lk.noise = o.noise;
+        var sd = o.data.data, sL = o.L, amt = nrAmount(lk);
+        if (amt) { // brusreducering i miniatyren, skalad till dess upplösning (σ uppmätt i samma storlek)
+          if (!o.nr || o.nr.amt !== amt) { var dd = new Uint8ClampedArray(sd); denoiseRGBA(dd, o.w, o.h, lk); o.nr = { amt: amt, d: dd, L: computeLum(dd, o.w * o.h) }; }
+          sd = o.nr.d; sL = o.nr.L;
+        }
+        var out = new ImageData(o.w, o.h); processPixels(sd, out.data, sL, o.clar, o.w, o.h, lk);
+        var c = cells[id]; c.cv.width = o.w; c.cv.height = o.h; var x = c.cv.getContext('2d'); x.putImageData(out, 0, 0);
+        var t = curText(); if (t) drawTitle(x, o.w, o.h, t);
+        c.ph.classList.add('hidden'); c.cell.classList.add('ready'); c.look = lk;
+      });
+    }).catch(function (e) { console.warn(e); if (cells[id]) { cells[id].ph.textContent = 'Kunde inte visas'; } });
+  }
+  function idle(fn) { return window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 120 }) : setTimeout(fn, 16); }
+  function schedule() {
+    clearTimeout(timer); var g = ++gen;
+    timer = setTimeout(function () { // avstudsat; renderar en bild i taget och avbryter vid ny ändring
+      var list = ids.slice(), k = 0;
+      (function step() { if (g !== gen || k >= list.length) { if (g === gen) strip.setAttribute('data-gen', g); return; } var id = list[k++]; idle(function () { renderOne(id, g).then(step); }); })();
+    }, 180);
+  }
+  function enlarge(id) {
+    var o = src[id], c = cells[id]; if (!o || !c) return;
+    var big = el('canvas', { class: 'bbig', width: c.cv.width, height: c.cv.height }), bx = big.getContext('2d'); bx.drawImage(c.cv, 0, 0);
+    var lbl = el('span', { class: 'holdlbl', text: 'Efter – håll för att se före' });
+    var lay = el('div', { class: 'cdlg bzoom', id: 'batchZoom' }, [el('div', { class: 'cdlg-box' }, [big, lbl,
+      el('div', { class: 'cdlg-btns' }, [el('button', { type: 'button', class: 'btn', text: 'Stäng', onclick: function () { lay.remove(); } })])])]);
+    function before(on) { if (on) { bx.putImageData(o.data, 0, 0); lbl.textContent = 'Före'; } else { bx.drawImage(c.cv, 0, 0); lbl.textContent = 'Efter – håll för att se före'; } }
+    big.addEventListener('pointerdown', function (e) { e.preventDefault(); before(true); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (k) { big.addEventListener(k, function () { before(false); }); });
+    big.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    lay.addEventListener('click', function (e) { if (e.target === lay) lay.remove(); });
+    document.body.append(lay);
+  }
   draw();
-  function close() { ov.remove(); }
-  box.append(el('h3', { text: 'Batchredigera ' + ids.length + (ids.length === 1 ? ' bild' : ' bilder') }), modeSeg, body, autoRow,
+  function close() { gen++; clearTimeout(timer); ov.remove(); }
+  box.append(head, strip, modeSeg, body, autoRow,
     el('label', { class: 'field' }, [el('span', { text: 'Rubrik (valfritt)' }), titleText]),
     el('p', { class: 'info', text: 'Varje bild får en Ångra-knapp. Originalet sparas också.' }),
     el('div', { class: 'cdlg-btns' }, [el('button', { type: 'button', class: 'btn', id: 'batchCancel', text: 'Avbryt', onclick: close }),
       el('button', { type: 'button', class: 'btn primary', id: 'batchRun', text: 'Applicera', onclick: function () {
-        var look = mode === 'preset' ? presetLook(presetId) : mode === 'current' ? JSON.parse(JSON.stringify(P.look)) : JSON.parse(JSON.stringify(custom));
-        delete look.autoLevels; var auto = autoCb.checked;
-        var t = titleText.value.trim(), text = t ? Object.assign(defaultText(), { text: t }) : null;
-        confirmDialog('Applicera på ' + ids.length + (ids.length === 1 ? ' bild?' : ' bilder?'), 'Applicera').then(function (ok) { if (!ok) return; close(); runBatch(ids, look, text, 'Batch: ' + (mode === 'preset' ? PRESETS[presetId].name : mode === 'current' ? 'nuvarande reglage' : 'egna reglage') + (auto ? ' + Autonivåer' : '') + (text ? ' + rubrik' : ''), auto); });
+        var look = curLook(), auto = autoCb.checked, text = curText(), n = ids.length, run = ids.slice();
+        confirmDialog('Applicera på ' + n + (n === 1 ? ' bild?' : ' bilder?'), 'Applicera').then(function (ok) { if (!ok) return; close(); runBatch(run, look, text, 'Batch: ' + (mode === 'preset' ? PRESETS[presetId].name : mode === 'current' ? 'nuvarande reglage' : 'egna reglage') + (auto ? ' + Autonivåer' : '') + (text ? ' + rubrik' : ''), auto); });
       } })]));
   ov.append(box); document.body.append(ov);
+  schedule();
 }
 function loadImg(blob) {
   return new Promise(function (res, rej) { var u = URL.createObjectURL(blob), i = new Image(); i.onload = function () { URL.revokeObjectURL(u); res(i); }; i.onerror = function () { URL.revokeObjectURL(u); rej(new Error('img')); }; i.src = u; });
@@ -2542,11 +2884,11 @@ function runBatch(ids, look, text, batchLabel, auto) {
     galGet(id).then(function (r) {
       if (!r) throw new Error('saknas');
       var mime = r.type === 'image/png' || r.type === 'image/webp' ? r.type : 'image/jpeg';
-      return (auto ? autoLevelsFor(r.blob) : Promise.resolve(null)).then(function (al) {
-        var lk = JSON.parse(JSON.stringify(look)); if (al) lk.autoLevels = al;
+      return analysisFor(r.blob, auto).then(function (an) {
+        var lk = JSON.parse(JSON.stringify(look)); if (an.al) lk.autoLevels = an.al; lk.noise = an.noise; r._lk = lk; // brus per bild
         return renderNative(r.blob, lk, text, mime, 92, function (f) { busyProgress((i + f) / ids.length); }).then(function (res) { return res.blob; }); }).then(function (blob) {
         if (cancelled && false) return;
-        verPush(r); r.blob = blob; r.size = blob.size; r.edited = Date.now(); r.curLabel = batchLabel;
+        verPush(r); r.edit = { look: r._lk, text: textMeta(text) }; delete r._lk; r.blob = blob; r.size = blob.size; r.edited = Date.now(); r.curLabel = batchLabel;
         return makeThumb(blob).then(function (t) { r.thumb = t.thumb; r.w = t.w; r.h = t.h; return galPut(r); }).then(function () { done.push({ id: r.id, name: r.name }); });
       });
     }).catch(function (e) { console.warn('batch', e); failed++; }).then(function () { i++; busyProgress(i / ids.length); setTimeout(next, 0); });
@@ -2559,7 +2901,7 @@ function runBatch(ids, look, text, batchLabel, auto) {
   next();
 }
 function showBatchSummary(done, msg) {
-  var old = $('#batchSummary'); if (old) old.remove();
+  var old = $('#batchSummary'); if (old) old.remove(); if (photoTool !== 'p-saved') openTool('p-saved'); // sammanfattningen visas i Sparade
   var box = el('div', { class: 'card ok', id: 'batchSummary' }), list = el('div', { class: 'blist' }), urls = [];
   box.append(el('b', { text: 'Batch klar' }), el('p', { class: 'info', text: msg }), list);
   function row(d) {
@@ -2574,7 +2916,7 @@ function showBatchSummary(done, msg) {
     var bs = list.querySelectorAll('.bundo:not(:disabled)'), ids = [].map.call(bs, function (b) { return +b.parentNode.getAttribute('data-id'); });
     ids.reduce(function (p, id) { return p.then(function () { return galUndo(id); }); }, Promise.resolve()).then(function () {
       [].forEach.call(bs, function (b) { b.disabled = true; b.textContent = 'Ångrad'; }); refreshGallery(); toast('Alla ändringar i batchen är ångrade.'); });
-  } }), el('button', { type: 'button', class: 'btn', text: 'Stäng', onclick: function () { urls.forEach(URL.revokeObjectURL); box.remove(); } })]));
+  } }), el('button', { type: 'button', class: 'btn', text: 'Stäng', onclick: function () { box.remove(); urls.forEach(function (u) { revokeSafe(u); }); } })]));
   galGrid.parentNode.insertBefore(box, galGrid);
 }
 
@@ -2584,8 +2926,18 @@ function autoLevelsFor(blob) {
     var W = d.naturalWidth || d.width, H = d.naturalHeight || d.height, s = fitSize(W, H, PREVIEW_MAX);
     var c = document.createElement('canvas'); c.width = s.w; c.height = s.h;
     var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(d, 0, 0, s.w, s.h);
-    if (d.close) d.close();
     var al = computeAutoLevels(x.getImageData(0, 0, s.w, s.h).data, s.w * s.h); c.width = c.height = 1; return al;
+  });
+}
+
+/* analys per bild i förhandsstorlek: brus (alltid) + Autonivåer (valfritt) */
+function analysisFor(blob, auto) {
+  return getDrawable(blob).then(function (d) {
+    var W = d.naturalWidth || d.width, H = d.naturalHeight || d.height, s = fitSize(W, H, PREVIEW_MAX);
+    var c = document.createElement('canvas'); c.width = s.w; c.height = s.h;
+    var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(d, 0, 0, s.w, s.h);
+    var px = x.getImageData(0, 0, s.w, s.h).data, r = { noise: combineNoise(analyzeNoise(px, s.w, s.h), analyzeNoiseNative(d)), al: auto ? computeAutoLevels(px, s.w * s.h) : null };
+    c.width = c.height = 1; if (d.close) d.close(); return r;
   });
 }
 
@@ -2600,17 +2952,21 @@ var QUOTA_MSG = 'Lagringsutrymmet är fullt. Ta bort bilder under Sparade eller 
 
 /* --- 1) session --- */
 var sessTimer = 0, sessSrcFor = null, sessSrcBuf = null, sessResuming = false, sessQuotaWarned = false;
+var sessGen = 0, sessClearedSig = null;
+function sessSig() { return (P.srcFile ? (P.srcFile.name || '') + ':' + P.srcFile.size + ':' + (P.srcFile.lastModified || 0) : '') + '|' + JSON.stringify(P.look) + '|' + JSON.stringify(textMeta(P.text)); }
 function sessionSnapshot() {
   if (!P.img || !P.srcFile || sessResuming) return Promise.resolve();
-  var f = P.srcFile;
+  if (sessClearedSig && sessSig() === sessClearedSig) return Promise.resolve(); // oförändrat sedan det sparades – återskapa inte
+  var f = P.srcFile, g = sessGen;
   var bufP = sessSrcFor === f ? Promise.resolve(sessSrcBuf) : toBuf(f).then(function (b) { sessSrcFor = f; sessSrcBuf = b; return b; });
   return bufP.then(function (buf) {
+    if (g !== sessGen) return; // rensad under tiden
     return kvPut('session', { src: { buf: buf, type: f.type || 'image/jpeg' }, name: f.name || (P.name + '.jpg'), look: JSON.parse(JSON.stringify(P.look)),
       preset: P.preset || null, text: JSON.parse(JSON.stringify(P.text)), ts: Date.now() });
   }).catch(function (e) { if (isQuota(e) && !sessQuotaWarned) { sessQuotaWarned = true; toast('Kunde inte autospara redigeringen – lagringsutrymmet är fullt.', 4500); } });
 }
 function sessionDirty() { clearTimeout(sessTimer); sessTimer = setTimeout(sessionSnapshot, 1000); }
-function sessionClear() { clearTimeout(sessTimer); return kvDel('session').catch(function () {}); }
+function sessionClear() { clearTimeout(sessTimer); sessTimer = 0; sessGen++; sessClearedSig = sessSig(); return kvDel('session').catch(function () {}); }
 window.sessionClear = sessionClear;
 (function () { // haka på alla ändringar i Foto
   var orig = requestPhotoRender;
@@ -2633,7 +2989,9 @@ function resumeSession(s) {
   loadPhoto(f, function () {
     var nl = blankLook(); ADJ.forEach(function (a) { if (typeof s.look[a.k] === 'number') nl[a.k] = s.look[a.k]; });
     photoAdjust.apply(nl, s.preset && PRESETS[s.preset] ? s.preset : null);
+    ['noise', 'nrOn', 'denoise'].forEach(function (k) { if (k in s.look) P.look[k] = s.look[k]; }); P.nrCache = null; if (typeof syncNoiseUI === 'function') syncNoiseUI();
     if (s.look.autoLevels) { P.look.autoLevels = s.look.autoLevels; setAutoLevels(true, true); P.look.autoLevels = s.look.autoLevels; } else setAutoLevels(false, true);
+    var tp = textPref(); if (s.text && tp.ts && (!s.ts || tp.ts > s.ts)) { s.text.font = tp.font; s.text.bold = tp.bold !== false; }
     applyTextSettings(s.text);
     sessResuming = false; requestPhotoRender(false);
     toast('Ditt senaste arbete återställdes', 2000);
@@ -2720,6 +3078,85 @@ panes['p-export'].append(el('div', { class: 'card', style: 'margin-top:16px' }, 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
   window.addEventListener('resize', close);
 })();
+
+/* markeringsgester i rutnätet */
+(function () {
+  var LONG_MS = 500, MOVE_PX = 10, anchor = null, press = null, drag = null, suppressUntil = 0;
+  function suppress() { suppressUntil = Date.now() + 450; }
+  function itemAt(x, y) { var e = document.elementFromPoint(x, y); return e && e.closest ? e.closest('.galitem') : null; }
+  function idOf(it) { return +it.getAttribute('data-id'); }
+  function items() { return [].slice.call(galGrid.querySelectorAll('.galitem')); }
+  galGrid.addEventListener('dragstart', function (e) { e.preventDefault(); });
+  galGrid.addEventListener('contextmenu', function (e) { if (e.target.closest('.galitem')) e.preventDefault(); });
+  galGrid.addEventListener('pointerdown', function (e) {
+    var it = e.target.closest('.galitem'); if (!it || !e.isPrimary || e.button > 0) return;
+    press = { it: it, x: e.clientX, y: e.clientY, id: e.pointerId, t: setTimeout(function () { // långtryck -> markeringsläge
+      if (!press) return; suppress();
+      if (!galSel.on) setSelMode(true);
+      if (!galSetSel(idOf(press.it), press.it, true)) toast('Du kan markera högst ' + BATCH_MAX + ' bilder åt gången.');
+      anchor = idOf(press.it); updSel();
+      drag = { mode: true, seen: {} }; drag.seen[anchor] = 1;
+      if (navigator.vibrate) try { navigator.vibrate(10); } catch (x) {}
+    }, LONG_MS) };
+    if (galSel.on) { drag = { mode: !galSel.ids[idOf(it)], seen: {}, start: it, moved: false }; }
+  });
+  var touching = false;
+  galGrid.addEventListener('pointermove', function (e) { move(e.clientX, e.clientY); });
+  /* Pekskärm: blockera scroll medan man drar en markering (iOS kan annars avbryta pekaren) och följ fingret via touchmove */
+  galGrid.addEventListener('touchstart', function () { touching = true; }, { passive: true });
+  galGrid.addEventListener('touchmove', function (e) {
+    if (!drag || !galSel.on) return; if (e.cancelable) e.preventDefault();
+    var t = e.touches[0]; if (t) move(t.clientX, t.clientY);
+  }, { passive: false });
+  galGrid.addEventListener('touchend', function () { touching = false; end(); });
+  galGrid.addEventListener('touchcancel', function () { touching = false; end(); });
+  function move(x, y) {
+    if (press && Math.hypot(x - press.x, y - press.y) > MOVE_PX) { clearTimeout(press.t); if (!drag) press = null; }
+    if (!drag || !galSel.on) return;
+    var it = itemAt(x, y); if (!it) return;
+    if (drag.start && it !== drag.start && !drag.moved) { drag.moved = true; galSetSel(idOf(drag.start), drag.start, drag.mode); drag.seen[idOf(drag.start)] = 1; }
+    if (!drag.moved && !drag.start) drag.moved = true;
+    if (!drag.moved) return;
+    var id = idOf(it); if (drag.seen[id]) return; drag.seen[id] = 1;
+    if (!galSetSel(id, it, drag.mode)) { if (!drag.warned) { drag.warned = true; toast('Du kan markera högst ' + BATCH_MAX + ' bilder åt gången.'); } }
+    suppress(); updSel();
+  }
+  function end() { if (press) clearTimeout(press.t); press = null; if (drag && drag.moved) suppress(); drag = null; }
+  galGrid.addEventListener('pointerup', function () { if (press) clearTimeout(press.t); press = null; if (drag && drag.moved) suppress(); drag = null; });
+  galGrid.addEventListener('pointercancel', function () { if (!touching) end(); else { if (press) clearTimeout(press.t); press = null; } });
+  galGrid.addEventListener('click', function (e) {
+    var it = e.target.closest('.galitem'); if (!it) return;
+    if (Date.now() < suppressUntil) { e.stopPropagation(); e.preventDefault(); suppressUntil = 0; return; }
+    var id = idOf(it);
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      e.stopPropagation(); e.preventDefault();
+      if (!galSel.on) setSelMode(true);
+      if (e.shiftKey && anchor != null) { // intervall
+        var list = items(), a = list.findIndex(function (x) { return idOf(x) === anchor; }), b = list.indexOf(it), over = false;
+        if (a < 0) a = b;
+        list.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function (x) { if (!galSetSel(idOf(x), x, true)) over = true; });
+        if (over) toast('Du kan markera högst ' + BATCH_MAX + ' bilder åt gången.');
+      } else { galToggle(id, it); anchor = id; }
+      updSel(); return;
+    }
+    if (galSel.on) anchor = id; // vanligt tryck i markeringsläge hanteras av rutans egen klickhanterare (växlar)
+  }, true);
+})();
+
+
+/* Batchredigera i Justera (enda huvudingången): N valda -> arket med 'Nuvarande'; 0 -> liten väljare */
+var batchJustBtn = el('button', { type: 'button', class: 'btn block outline-blue', id: 'batchJustBtn', html: '', onclick: function () {
+  if (galSel.n) { openBatchSheet({ mode: 'current' }); return; }
+  var lay = el('div', { class: 'cdlg', id: 'batchChooser' }), bx = el('div', { class: 'cdlg-box' });
+  function close() { lay.remove(); }
+  bx.append(el('p', { class: 'cdlg-msg', text: 'Inga bilder valda för batch.' }),
+    el('div', { class: 'addmenu inline' }, [
+      el('button', { type: 'button', id: 'chooseMulti', html: ICON.gallery + 'Välj flera bilder', onclick: function () { close(); pickMulti(); } }),
+      el('button', { type: 'button', id: 'chooseMark', html: ICON.gallery + 'Markera i Sparade', onclick: function () { close(); openTool('p-saved'); setTimeout(function () { if (!galSel.on) setSelMode(true); galPane.scrollIntoView({ block: 'start' }); }, 80); } })]),
+    el('div', { class: 'cdlg-btns' }, [el('button', { type: 'button', class: 'btn', text: 'Avbryt', onclick: close })]));
+  lay.append(bx); lay.addEventListener('click', function (e) { if (e.target === lay) close(); }); document.body.append(lay);
+} });
+panes['p-adjust'].append(batchJustBtn); updSel();
 
 </script>
 </body>
