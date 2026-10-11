@@ -557,6 +557,13 @@ body.fs #fsToolsBtn{color:#fff}
 @media (prefers-color-scheme: light){ .input::placeholder,textarea::placeholder,input::placeholder{color:#55657a} }
 .seg button{min-width:44px}
 @media (min-width:700px) and (min-height:501px){ body:not(.fs) header.top{min-height:60px;padding-top:max(5px,env(safe-area-inset-top));padding-bottom:5px} } /* iPad: 60 px huvud (50 px knappgrupp + 2×5) */
+.bzwrap{position:relative}
+.bzlbl{position:absolute;left:10px;top:10px;padding:6px 12px;border-radius:999px;background:rgba(11,26,46,.72);color:#fff;font-size:13px;font-weight:600;pointer-events:none;white-space:nowrap;max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis}
+.switch input{top:-8px!important;left:-6px!important;width:calc(100% + 12px)!important;height:calc(100% + 16px)!important;-webkit-appearance:none;appearance:none} /* träffyta 48×64 px */
+#saveDefBtn,#resetDefBtn{min-height:44px;white-space:normal;line-height:1.2;padding-left:8px;padding-right:8px}
+.newslist{margin:6px 0 10px;padding-left:20px;line-height:1.45;font-size:15px}
+.newslist li{margin:4px 0}
+#newsSheet .cdlg-btns a.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;text-decoration:none}
 </style>
 </head>
 <body>
@@ -808,7 +815,7 @@ var ADJ = [
 var PRESETS = {
   original: { name: 'Original', v: {} },
   natural: { name: 'Naturlig', v: { exposure: 6, contrast: 4, highlights: -25, shadows: 42, saturation: 26, warmth: 24, sharpness: 35, clarity: 10 } },
-  crystal: { name: 'Kristallklar', v: { exposure: 2, contrast: 16, highlights: -12, shadows: 10, saturation: 28, warmth: 8, sharpness: 60, clarity: 50 } }
+  crystal: { name: 'Kristallklar', v: { exposure: 2, contrast: 13, highlights: -12, shadows: 20, saturation: 28, warmth: 8, sharpness: 60, clarity: 50, toe: 2.5, shWarm: 4 } }
 };
 function blankLook() { var s = {}; ADJ.forEach(function (a) { s[a.k] = 0; }); return s; }
 function presetLook(id) { var s = blankLook(), v = PRESETS[id].v, k; for (k in v) s[k] = v[k]; return s; }
@@ -886,6 +893,7 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
   var sharp = st.sharpness / 100 * 1.4, cl = st.clarity / 100 * 0.9, sat = st.saturation / 100, vig = st.vignette / 100 * 0.55;
   var inv = 1 / 255, x, y, vx = null, nzAtt = st.noise ? (st.noise.level === 'high' ? 0.5 : st.noise.level === 'medium' ? 0.3 : 0) : 0, la = st.autoLevels ? levelsLUT(st.autoLevels, nzAtt) : null, l0 = la && la[0], l1 = la && la[1], l2 = la && la[2], lvib = la ? (st.autoLevels.vib || 0) * 2.5 : 0;
   if (vig > 0) { vx = new Float32Array(w); for (x = 0; x < w; x++) { var dx = (x + ox + 0.5) / W * 2 - 1; vx[x] = dx * dx; } }
+  var shW = (st.shWarm || 0) / 255, toe = (st.toe || 0) / 255;
   if (nzAtt) cl *= 1 - nzAtt; // brusig bild: dämpa klarheten
   /* adaptiv skärpetröskel: max(2,5/255, 1,5·σ) och mindre skärpa i plana ytor i proportion till bruset */
   var nsig = st.noise ? noiseSig(st.noise, W, H).y / 255 * (1 - 0.7 * nrAmount(st)) : 0;
@@ -926,7 +934,9 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
         var top = cd[c0 + a0] + (cd[c0 + a1] - cd[c0 + a0]) * tx;
         var bot = cd[c1 + a0] + (cd[c1 + a1] - cd[c1 + a0]) * tx;
         var mm = 2 * l - 1;
-        d += cl * (l - (top + (bot - top) * ty)) * (0.35 + 0.65 * (1 - mm * mm));
+        var ct = cl * (l - (top + (bot - top) * ty)) * (0.35 + 0.65 * (1 - mm * mm));
+        if (ct < 0 && l < 0.25) ct *= 0.5 + 2 * l; // klarhet mörkar djupa skuggor högst hälften så mycket (ingen igenkörning)
+        d += ct;
       }
       if (d !== 0) { r += d; g += d; b += d; }
       /* tonkurvan (exponering/kontrast/högdagrar/skuggor) verkar på luminansen; krominansen (r−Y, g−Y, b−Y) läggs tillbaka
@@ -938,6 +948,8 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
       if (Y1 + cmn < 0 && cmn < 0) { var k2 = -Y1 / cmn; if (k2 < kc) kc = k2; }
       if (kc < 0) kc = 0;
       r = Y1 + r * kc; g = Y1 + g * kc; b = Y1 + b * kc;
+      if (shW) { var ys = 0.2126 * r + 0.7152 * g + 0.0722 * b; if (ys < 0.35) { var ts = 1 - ys / 0.35; ts *= ts * shW; r += ts; b -= ts; } } // varm skuggton
+      if (toe) { r = toe + r * (1 - toe); g = toe + g * (1 - toe); b = toe + b * (1 - toe); } // mjuk tå: lyft svartpunkt
       if (sat !== 0) {
         var ll = 0.2126 * r + 0.7152 * g + 0.0722 * b, a = sat;
         if (a > 0) { var mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b); a *= 1 - (mx - mn) * 0.7; }
@@ -957,51 +969,102 @@ function processRegion(src, dst, L, SB, clar, w, h, st, ox, oy, W, H, y0, y1) {
    där e_c = mittonsneutralisering_c × global gamma-exponent och S en mild S-kurva med skyddade högdagrar.
    Efteråt (i processRegion) lätt vibrans på omättade färger om histogrammet var smalt. */
 function computeAutoLevels(d, n) {
-  var step = Math.max(1, Math.floor(n / 250000)), hC = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)], cnt = 0, i, p, c;
+  /* v10: TON länkad från luminansen (samma svart/vit för R,G,B; 0,5 % klipp, gamma, S-kurva) +
+     FÄRG som separat, begränsad stickborttagning (≤ 35 % av full per-kanal-sträckning, bara vid konsekvent stick),
+     neutralisering bara med pålitliga neutraler (±8 %, luminansbevarande, aldrig mot gult utan mätbart blåstick)
+     och en säkerhetskontroll: nyansskift på hud/mellanmättade pixlar ≤ 4°. */
+  var step = Math.max(1, Math.floor(n / 250000)), hC = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)], hY = new Uint32Array(256), cnt = 0, i, p, c;
   for (i = 0; i < n; i += step) {
     p = i << 2; var r = d[p], g = d[p + 1], b = d[p + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-    if (mx <= 2 || mn >= 253) continue; // ram/letterbox i rent svart eller vitt räknas inte
-    hC[0][r]++; hC[1][g]++; hC[2][b]++; cnt++;
+    if (mx <= 2 || mn >= 253) continue; // ram/letterbox
+    hC[0][r]++; hC[1][g]++; hC[2][b]++; hY[Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b)]++; cnt++;
   }
   if (cnt < 100) return null;
   function pct(h, q) { var t = q * cnt, s = 0; for (var k = 0; k < 256; k++) { s += h[k]; if (s > t) return k; } return 255; }
-  var black = [], white = [];
+  var bl = pct(hY, 0.005), wh = pct(hY, 0.995);
+  if (wh - bl < 32) { var m = (wh + bl) / 2; bl = Math.max(0, m - 16); wh = Math.min(255, bl + 32); }
+  // per-kanal-ändpunkter (endast för stickmätning)
+  var cb = [], cw = [];
+  for (c = 0; c < 3; c++) { cb.push(pct(hC[c], 0.005)); cw.push(pct(hC[c], 0.995)); }
+  var mb = (cb[0] + cb[1] + cb[2]) / 3, mw = (cw[0] + cw[1] + cw[2]) / 3, db = [0, 0, 0], dw = [0, 0, 0];
   for (c = 0; c < 3; c++) {
-    var bl = pct(hC[c], 0.005), wh = pct(hC[c], 0.995);
-    if (wh - bl < 32) { var m = (wh + bl) / 2; bl = Math.max(0, m - 16); wh = Math.min(255, bl + 32); }
-    black.push(bl); white.push(wh);
+    var ob = cb[c] - mb, ow = cw[c] - mw;
+    // konsekvent stick: kanalen ligger åt samma håll i båda ändar (t.ex. blått lågt både i skuggor och högdagrar)
+    // (en ände kan vara klippt mot 0/255 och då säga ~0 – räknas inte som oenighet)
+    var clipB = cb[c] <= 1 || mb <= 2, clipW = cw[c] >= 254 || mw >= 253;
+    if (ob * ow > 0 && Math.abs(ob) > 3 && Math.abs(ow) > 3) { var o = Math.abs(ob) < Math.abs(ow) ? ob : ow; db[c] = 0.35 * o; dw[c] = 0.35 * o; }
+    else if (Math.abs(ob) > 6 && (clipW || (Math.abs(ow) <= 2 && ob * ow >= 0))) { db[c] = 0.35 * ob; dw[c] = 0.35 * ob; }
+    else if (Math.abs(ow) > 6 && (clipB || (Math.abs(ob) <= 2 && ob * ow >= 0))) { db[c] = 0.35 * ow; dw[c] = 0.35 * ow; }
   }
-  // andra passet: värden efter nivåer, för neutralisering och gamma
-  function lv(v, c) { var x = (v - black[c]) / (white[c] - black[c]); return x < 0 ? 0 : x > 1 ? 1 : x; }
-  var neu = [[], [], []], lum = [];
+  function lvl(v) { var x = (v - bl) / (wh - bl); return x < 0 ? 0 : x > 1 ? 1 : x; }
+  // neutraler efter länkade nivåer: låg mättnad, mellanluminans, inte hudnyans, inte hög krominans
+  var nr = [], ng = [], nb = [], lum = [], tot = 0;
   for (i = 0; i < n; i += step * 2) {
     p = i << 2; var R = d[p], G = d[p + 1], B = d[p + 2]; if (Math.max(R, G, B) <= 2 || Math.min(R, G, B) >= 253) continue;
-    var x0 = lv(R, 0), x1 = lv(G, 1), x2 = lv(B, 2), L = 0.2126 * x0 + 0.7152 * x1 + 0.0722 * x2, mx2 = Math.max(x0, x1, x2), mn2 = Math.min(x0, x1, x2);
-    lum.push(L);
-    if (L > 0.15 && L < 0.85 && mx2 - mn2 < 0.15) { neu[0].push(x0); neu[1].push(x1); neu[2].push(x2); }
+    var x0 = lvl(R), x1 = lvl(G), x2 = lvl(B), L = 0.2126 * x0 + 0.7152 * x1 + 0.0722 * x2, mx2 = Math.max(x0, x1, x2), mn2 = Math.min(x0, x1, x2);
+    lum.push(L); tot++;
+    var sat = mx2 > 0 ? (mx2 - mn2) / mx2 : 0, hue = rgbHue(x0, x1, x2);
+    if (L > 0.2 && L < 0.8 && sat < 0.08 && !(hue >= 10 && hue <= 50 && sat > 0.03)) { nr.push(x0); ng.push(x1); nb.push(x2); }
   }
   function med(a) { if (!a.length) return 0.5; a.sort(function (u, v) { return u - v; }); return a[a.length >> 1]; }
-  var e = [1, 1, 1], gain = [1, 1, 1];
-  if (neu[0].length > 200) {
-    var m0 = [med(neu[0]), med(neu[1]), med(neu[2])], gray = (m0[0] + m0[1] + m0[2]) / 3;
-    for (c = 0; c < 3; c++) { var gc = Math.max(0.8, Math.min(1.2, gray / Math.max(0.02, m0[c]))); gain[c] = +gc.toFixed(3); e[c] = Math.log(Math.min(0.98, m0[c] * gc)) / Math.log(Math.max(0.02, m0[c])); }
+  var gain = [1, 1, 1], blueCast = false, neutralOk = nr.length >= 0.02 * tot && nr.length > 100;
+  if (neutralOk) {
+    var m0 = [med(nr), med(ng), med(nb)], gray = (m0[0] + m0[1] + m0[2]) / 3;
+    blueCast = m0[2] > (m0[0] + m0[1]) / 2 + 0.01;
+    for (c = 0; c < 3; c++) gain[c] = Math.max(0.92, Math.min(1.08, gray / Math.max(0.02, m0[c])));
+    var gl = 0.2126 * gain[0] + 0.7152 * gain[1] + 0.0722 * gain[2]; for (c = 0; c < 3; c++) gain[c] /= gl; // bevara luminansen
+    if (!blueCast && gain[2] < (gain[0] + gain[1]) / 2) gain = [1, 1, 1]; // aldrig mot gult utan mätbart blåstick
   }
-  // global gamma: luminansmedel mot 0,48 (gamma 0,65–1,5; ut = n^(1/gamma))
+  if (!blueCast) { // stickborttagning får inte heller sänka blått relativt R/G utan blåstick
+    var yb = (db[2] - (db[0] + db[1]) / 2); if (yb > 0) { db = [0, 0, 0]; dw = [0, 0, 0]; }
+  }
+  // gamma: luminansmedel mot 0,48 (0,65–1,5), ljusa bilder mörkas högst till 0,8
   var mean = 0; for (i = 0; i < lum.length; i++) mean += lum[i]; mean /= Math.max(1, lum.length);
-  // ljusa, luftiga bilder ska inte mörkas ner kraftigt: mörkning först över 0,62 och högst till gamma 0,8
   var mc = Math.max(0.02, Math.min(0.98, mean)), gamma = 1;
   if (mc < 0.46) gamma = Math.min(1.5, Math.log(mc) / Math.log(0.48));
   else if (mc > 0.62) gamma = Math.max(0.8, Math.log(mc) / Math.log(0.58));
   lum.sort(function (u, v) { return u - v; });
   var iqr = lum.length ? lum[(lum.length * 0.75) | 0] - lum[(lum.length * 0.25) | 0] : 1;
   var narrow = iqr < 0.45, contrast = narrow ? +(0.08 + 0.04 * Math.min(1, (0.45 - iqr) / 0.2)).toFixed(3) : 0, vib = narrow ? 0.08 : 0;
-  var al = { black: black, white: white, exp: e.map(function (v) { return +(v / gamma).toFixed(4); }), gamma: +gamma.toFixed(3), contrast: contrast, vib: vib,
-    stats: { gain: gain, mean: +mean.toFixed(3), iqr: +iqr.toFixed(3), neutralPx: neu[0].length } };
-  // styrka: medelavvikelse (0–255) mellan original och resultat på ett stickprov
+  function build(sc) { // sc = andel av färgkorrigeringen (0–1)
+    var black = [], white = [], exp = [];
+    for (var c2 = 0; c2 < 3; c2++) {
+      black.push(+(bl + sc * db[c2]).toFixed(2)); white.push(+(wh + sc * dw[c2]).toFixed(2));
+      var gc = 1 + sc * (gain[c2] - 1), e2 = Math.log(Math.min(0.98, 0.5 * gc)) / Math.log(0.5); // förstärkning i mitttonerna som exponent
+      exp.push(+(e2 / gamma).toFixed(4));
+    }
+    return { black: black, white: white, exp: exp, gamma: +gamma.toFixed(3), contrast: contrast, vib: vib };
+  }
+  // säkerhetskontroll: nyansskift (färgsteget) på hud- och mellanmättade pixlar ≤ 4°
+  var tone = levelsLUT(build(0)), samp = [];
+  for (i = 0; i < n && samp.length < 6000; i += step * 7) {
+    p = i << 2; var r3 = d[p] / 255, g3 = d[p + 1] / 255, b3 = d[p + 2] / 255, mx3 = Math.max(r3, g3, b3), s3 = mx3 > 0 ? (mx3 - Math.min(r3, g3, b3)) / mx3 : 0, h3 = rgbHue(r3, g3, b3);
+    if (mx3 > 0.15 && ((h3 >= 10 && h3 <= 50 && s3 > 0.12 && s3 < 0.65) || (s3 >= 0.15 && s3 <= 0.5))) samp.push(p);
+  }
+  function shift(lut) {
+    var s = 0, k = 0;
+    samp.forEach(function (q) {
+      var a = rgbHue(tone[0][d[q]], tone[1][d[q + 1]], tone[2][d[q + 2]]), b2 = rgbHue(lut[0][d[q]], lut[1][d[q + 1]], lut[2][d[q + 2]]);
+      var dh = Math.abs(a - b2); if (dh > 180) dh = 360 - dh; s += dh; k++;
+    });
+    return k ? s / k : 0;
+  }
+  var sc = 1, hs = shift(levelsLUT(build(1)));
+  while (hs > 4 && sc > 0.05) { sc *= 0.75; hs = shift(levelsLUT(build(sc))); }
+  if (hs > 4) { sc = 0; hs = 0; }
+  var al = build(sc);
+  al.stats = { gain: gain.map(function (v) { return +v.toFixed(3); }), castShift: db.map(function (v) { return +v.toFixed(1); }), colorScale: +sc.toFixed(2), hueShift: +hs.toFixed(2),
+    neutralPx: nr.length, neutralOk: neutralOk, blueCast: blueCast, mean: +mean.toFixed(3), iqr: +iqr.toFixed(3), lumBW: [bl, wh] };
   var lut = levelsLUT(al), sum = 0, k = 0;
   for (i = 0; i < n; i += step * 4) { p = i << 2; for (c = 0; c < 3; c++) { sum += Math.abs(lut[c][d[p + c]] * 255 - d[p + c]); k++; } }
   al.strength = +(sum / Math.max(1, k)).toFixed(2);
   return al;
+}
+function rgbHue(r, g, b) {
+  var mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b), d = mx - mn, h;
+  if (d <= 1e-6) return 0;
+  if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+  h *= 60; return h < 0 ? h + 360 : h;
 }
 function levelsLUT(al, att) {
   var out = [], con = al.contrast || 0; att = att || 0;
@@ -1454,6 +1517,7 @@ function buildAdjustPanel(pane, look, onChange, opts) {
   }
   function apply(nl, id) {
     ADJ.forEach(function (a) { look[a.k] = nl[a.k]; sliders[a.k].set(nl[a.k]); });
+    look.toe = nl.toe || 0; look.shWarm = nl.shWarm || 0; // förinställningens skuggton/tå
     markPreset(id); onChange();
   }
   markPreset('original');
@@ -2145,7 +2209,8 @@ function analyzePhotoNoise() {
   var sliders = p.querySelectorAll('.ctl'); var last = sliders[sliders.length - 1]; (last || row).after(block);
 })();
 /* --- Foto: Standardinställningar --- */
-var DEF_KEY = 'klarbild.photoDefault.v1';
+var FAV_KEY = 'klarbild.favoritfilter.v1', DEF_KEY = FAV_KEY; // Favoritfilter (hette tidigare "standard")
+(function migrateFavoritfilter() { try { ['klarbild.photoDefault.v1', 'klarbild.favorit.v1'].forEach(function (k) { var v = localStorage.getItem(k); if (v != null) { if (localStorage.getItem(FAV_KEY) == null) localStorage.setItem(FAV_KEY, v); localStorage.removeItem(k); } }); } catch (e) {} })();
 function loadPhotoDefault() { try { var d = JSON.parse(localStorage.getItem(DEF_KEY) || 'null'); return d && d.look ? d : null; } catch (e) { return null; } }
 function applyPhotoDefault() {
   analyzePhotoNoise(); // brusanalys per bild (< 100 ms)
@@ -2158,14 +2223,14 @@ function applyPhotoDefault() {
 }
 (function () {
   var p = panes['p-adjust'], st = el('p', { class: 'info', id: 'defStatus' });
-  function upd() { st.textContent = loadPhotoDefault() ? 'Din standard används automatiskt för varje ny bild.' : 'Ingen egen standard sparad – nya bilder öppnas utan justeringar.'; }
+  function upd() { st.textContent = loadPhotoDefault() ? 'Ditt favoritfilter används automatiskt för varje ny bild.' : 'Inget favoritfilter sparat – nya bilder öppnas utan justeringar.'; }
   p.append(el('div', { class: 'btnrow' }, [
-    el('button', { type: 'button', class: 'btn', id: 'saveDefBtn', text: 'Spara som standard', onclick: function () {
+    el('button', { type: 'button', class: 'btn', id: 'saveDefBtn', text: 'Spara som favoritfilter', onclick: function () {
       var lk = {}; ADJ.forEach(function (a) { lk[a.k] = P.look[a.k]; });
-      try { localStorage.setItem(DEF_KEY, JSON.stringify({ look: lk, preset: P.preset || null, textPos: { pos: P.text.pos, x: P.text.x, y: P.text.y } })); toast('Sparat som standard för nya bilder.'); }
+      try { localStorage.setItem(DEF_KEY, JSON.stringify({ look: lk, preset: P.preset || null, textPos: { pos: P.text.pos, x: P.text.x, y: P.text.y } })); toast('Sparat som favoritfilter för nya bilder.'); }
       catch (e) { toast('Kunde inte spara (privat surfläge?).'); } upd(); } }),
-    el('button', { type: 'button', class: 'btn', id: 'resetDefBtn', text: 'Återställ standard', onclick: function () {
-      try { localStorage.removeItem(DEF_KEY); } catch (e) {} photoAdjust.apply(blankLook(), 'original'); toast('Standard återställd.'); upd(); } })
+    el('button', { type: 'button', class: 'btn', id: 'resetDefBtn', text: 'Återställ favoritfilter', onclick: function () {
+      try { localStorage.removeItem(DEF_KEY); } catch (e) {} photoAdjust.apply(blankLook(), 'original'); toast('Favoritfilter återställt.'); upd(); } })
   ]), st);
   var acb = el('input', { type: 'checkbox', id: 'autoNewCb', 'aria-label': 'Autonivåer på nya bilder' }); acb.checked = autoNewOn();
   acb.addEventListener('change', function () { try { localStorage.setItem(AUTO_NEW_KEY, acb.checked ? '1' : '0'); } catch (e) {} toast(acb.checked ? 'Autonivåer används på nya bilder.' : 'Autonivåer används inte automatiskt.'); });
@@ -2847,14 +2912,17 @@ function openBatchSheet(opts) {
   function enlarge(id) {
     var o = src[id], c = cells[id]; if (!o || !c) return;
     var big = el('canvas', { class: 'bbig', width: c.cv.width, height: c.cv.height }), bx = big.getContext('2d'); bx.drawImage(c.cv, 0, 0);
-    var lbl = el('span', { class: 'holdlbl', text: 'Efter – håll för att se före' });
-    var lay = el('div', { class: 'cdlg bzoom', id: 'batchZoom' }, [el('div', { class: 'cdlg-box' }, [big, lbl,
-      el('div', { class: 'cdlg-btns' }, [el('button', { type: 'button', class: 'btn', text: 'Stäng', onclick: function () { lay.remove(); } })])])]);
+    var lbl = el('span', { class: 'bzlbl', text: 'Efter – håll för att se före' });
+    function shut() { lay.remove(); document.removeEventListener('keydown', onKey, true); }
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); shut(); } }
+    var lay = el('div', { class: 'cdlg bzoom', id: 'batchZoom' }, [el('div', { class: 'cdlg-box' }, [el('div', { class: 'bzwrap' }, [big, lbl]),
+      el('div', { class: 'cdlg-btns' }, [el('button', { type: 'button', class: 'btn', text: 'Stäng', onclick: shut })])])]);
+    document.addEventListener('keydown', onKey, true);
     function before(on) { if (on) { bx.putImageData(o.data, 0, 0); lbl.textContent = 'Före'; } else { bx.drawImage(c.cv, 0, 0); lbl.textContent = 'Efter – håll för att se före'; } }
     big.addEventListener('pointerdown', function (e) { e.preventDefault(); before(true); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (k) { big.addEventListener(k, function () { before(false); }); });
     big.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-    lay.addEventListener('click', function (e) { if (e.target === lay) lay.remove(); });
+    lay.addEventListener('click', function (e) { if (e.target === lay) shut(); });
     document.body.append(lay);
   }
   draw();
@@ -3157,6 +3225,31 @@ var batchJustBtn = el('button', { type: 'button', class: 'btn block outline-blue
   lay.append(bx); lay.addEventListener('click', function (e) { if (e.target === lay) close(); }); document.body.append(lay);
 } });
 panes['p-adjust'].append(batchJustBtn); updSel();
+
+/* --- Nyheter i version 10: visas en gång vid första start av v10, diskret och stängbar --- */
+(function () {
+  var KEY = 'klarbild.nyheter.v10';
+  try { if (localStorage.getItem(KEY)) return; } catch (e) { return; }
+  if (navigator.webdriver && location.hash.indexOf('nyheter') < 0) return; // automatiska tester: bara med #nyheter
+  function show() {
+    var lay = el('div', { class: 'cdlg', id: 'newsSheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'newsTitle' });
+    function shut() { try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {} lay.remove(); document.removeEventListener('keydown', onKey, true); }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); shut(); } }
+    var list = el('ul', { class: 'newslist' });
+    ['Autonivåer ger inte längre gulstick – tonen är lika kraftig, färgerna mer naturliga',
+     'Kristallklar: mjukare och varmare skuggor med bevarade detaljer',
+     '"Spara som standard" heter nu Favoritfilter',
+     'Förstorad batchförhandsvisning: tydligare etikett, Esc stänger',
+     'Brusreducering syns nu även i batchförhandsvisningen'].forEach(function (t) { list.append(el('li', { text: t })); });
+    lay.append(el('div', { class: 'cdlg-box' }, [el('h3', { id: 'newsTitle', text: 'Nyheter i version 10' }), list,
+      el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Läs mer' }),
+        el('button', { type: 'button', class: 'btn primary', id: 'newsOk', text: 'Okej', onclick: shut })])]));
+    lay.addEventListener('click', function (e) { if (e.target === lay) shut(); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.append(lay);
+  }
+  setTimeout(show, 1200); // efter ev. återställd session, stör inte start
+})();
 
 </script>
 </body>
