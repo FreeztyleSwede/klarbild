@@ -828,6 +828,70 @@ html.bs-l .fbedbar .btn,html.bs-m .fbedbar .btn{zoom:1}
 .sheet .btnrow{gap:8px;margin-top:8px}
 /* v14b L4: på smal stående telefon ligger temaknappen uppe till vänster – märket Före flyttas ned under den */
 @media (max-width:430px){ body:not(.fs) .badge{top:56px} }
+.empty .hometip{display:inline-flex;align-items:center;gap:7px;margin-top:16px;padding:6px 12px;border-radius:999px;font-size:13px;line-height:1.35;color:var(--muted);background:rgba(255,255,255,.05);border:1px solid var(--line);max-width:min(420px,100%);text-align:left} /* v14c p4 */
+.empty .hometip-i{font-size:14px;flex:none}
+@media (max-height:520px){ .empty .hometip{margin-top:8px;padding:4px 10px;font-size:12px} }
+.cropcard .seg.rotseg{display:grid!important;grid-template-columns:repeat(3,1fr);width:100%;box-sizing:border-box}.rotseg button{min-height:44px} /* v14c p3 */
+/* v14c p5: minsta knappstorleken (Liten) – mindre knappar, text och ikoner; tryckytan 40 px (övriga lägen 44 px) */
+html.bs-s .iconbtn:not(.fsbtn),html.bs-s body:not(.fs) #themeBtn,html.bs-s body.fs #themeBtn{width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;border-radius:11px}
+html.bs-s body:not(.fs) header.top .iconbtn:not(.fsbtn){flex:0 0 40px!important}html.bs-s body:not(.fs) header.top .fsbtn{flex:none!important;min-width:40px!important}
+html.bs-s .iconbtn svg,html.bs-s #themeBtn svg{width:17px;height:17px}
+html.bs-s .pill,html.bs-s .stage-tools .pill{min-height:40px;min-width:40px;padding:4px 10px;font-size:13px;gap:5px}
+html.bs-s .pill svg{width:15px;height:15px}
+html.bs-s .seg button,html.bs-s .btn,html.bs-s .chip,html.bs-s .favbtn,html.bs-s .fontchip,html.bs-s .sw,html.bs-s .cropcard .seg button,html.bs-s .cropcard .seg.rotseg button{min-height:40px}
+html.bs-s .seg button{font-size:14px;padding-top:4px;padding-bottom:4px}
+html.bs-s body:not(.fs) header.top .seg button{min-height:40px!important;font-size:14px;padding-top:4px;padding-bottom:4px}
+html.bs-s .sheet .btn,html.bs-s .vw-bar .btn,html.bs-s .cdlg-btns .btn,html.bs-s .sheet .btnrow .btn{min-height:40px;padding:5px 12px;font-size:14px;border-radius:11px}
+html.bs-s .sheet .btn svg,html.bs-s .vw-bar .btn svg{width:16px;height:16px}
+html.bs-s .sheet .chip{font-size:14px;padding:4px 11px}
+html.bs-s .tools button{min-height:46px;font-size:11px;gap:1px}html.bs-s .tools button svg{width:19px;height:19px}
+html.bs-s .tools button.bsbtn{min-width:46px}
+html.bs-s .fbedbar .btn{min-height:40px;padding:4px 12px;font-size:14px}
+html.bs-s body:not(.fs) header.top{gap:4px;padding-top:max(4px,env(safe-area-inset-top));padding-bottom:4px;min-height:0}
+@media (orientation:landscape) and (max-height:500px){ html.bs-s .tools button{min-height:40px;min-width:40px} }
+/* v14c p6: maximal bildyta – knapparna ovanpå bilden ligger som halvgenomskinliga piller över den i stället för att ta egen plats; tunnare marginaler; säkra ytor respekteras */
+body:not(.fs):not(.ui-hidden) .preview-card .canvas-wrap{padding:4px}
+body.fs:not(.ui-hidden) .preview-card .canvas-wrap{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+body:not(.fs):not(.ui-hidden) .preview-card.edopen .canvas-wrap{padding-top:54px} /* beskärnings-/FB-redigeraren: raden Klar/Mitten får egen plats ovanför bilden */
+body.fs:not(.ui-hidden) .preview-card.edopen .canvas-wrap{padding-top:calc(54px + env(safe-area-inset-top))}
+.preview-card{border-radius:16px}
+.canvas-wrap canvas{border-radius:4px}
+body:not(.fs):not(.ui-hidden) .stage{padding:0 max(4px,env(safe-area-inset-right)) 4px max(4px,env(safe-area-inset-left))}
+.sheet{padding:12px 14px 6px}
+@media (max-width:819px) and (orientation:portrait){ .sheet{max-height:34vh;max-height:34dvh} .panel{border-radius:16px 16px 0 0} }
+@media (max-height:760px) and (max-width:819px) and (orientation:portrait){ .sheet{max-height:31vh;max-height:31dvh} }
+@media (min-width:700px) and (max-width:1100px) and (orientation:portrait){ body:not(.fs):not(.ui-hidden) .stage{padding:0 6px 6px} .panel{margin:0 6px} .sheet{height:31vh;height:31dvh;padding:12px 16px 8px} }
+@media (min-width:820px) and (min-height:501px) and (orientation:landscape){ body:not(.fs):not(.ui-hidden) .stage{padding:0 6px calc(6px + env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))} body:not(.fs) .panel{width:360px;margin:0 max(6px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) 0} .sheet{padding:12px 16px} }
+@media (min-width:1280px) and (pointer:fine){ body:not(.fs) .panel{width:380px} }
+@media (orientation:landscape) and (max-height:500px){ body:not(.fs):not(.ui-hidden) .stage{padding:max(2px,env(safe-area-inset-top)) 2px max(2px,env(safe-area-inset-bottom)) max(2px,env(safe-area-inset-left))} .preview-card{border-radius:12px} .sheet{padding:6px 10px 6px} }
+@media (orientation:landscape) and (max-height:500px){ html.bs-m body:not(.fs) header.top .brand,html.bs-l body:not(.fs) header.top .brand{display:none!important} } /* v14c p6: logotypen fick inte plats och låg över Zooma-pillret på liggande telefon */
+/* v14c p6: inget får ligga över viktiga knappar när bildytan är större */
+@media (orientation:landscape) and (max-height:500px){
+  body:not(.fs) header.top .brand{display:none!important}
+  body:not(.fs) .stage-tools{right:auto;left:8px;top:8px} /* huvudraden kan sticka ut till vänster om menyn – pillren till vänster */
+  body:not(.fs) .badge{top:auto;bottom:10px;left:10px}
+  body:not(.fs) .fbedbar{left:8px;transform:none}
+  html.bs-l body:not(.fs) .panel{padding-top:calc(62px + env(safe-area-inset-top))}
+  html.bs-s body:not(.fs) .panel{padding-top:calc(50px + env(safe-area-inset-top))}
+}
+@media (max-width:600px) and (orientation:portrait){
+  body.fs:not(.fine) .stage-tools{flex-direction:column;align-items:flex-start;top:calc(8px + env(safe-area-inset-top));left:calc(8px + env(safe-area-inset-left));right:auto}
+}
+@media (orientation:landscape) and (max-height:540px){
+  body.fs:not(.fine) .stage-tools{flex-direction:column;align-items:flex-start;top:calc(62px + env(safe-area-inset-top));left:calc(12px + env(safe-area-inset-left));right:auto}
+}
+body.fs:not(.fine) .badge{left:auto;right:calc(12px + env(safe-area-inset-right));top:calc(62px + env(safe-area-inset-top))}
+@media (max-width:600px) and (orientation:portrait),(orientation:landscape) and (max-height:540px){ /* helskärm på telefon: raden Mitten/Ingen/Klar nederst (zoomraden döljs medan man beskär) så att den inte krockar med knapparna uppe till höger/vänster */
+  body.fs:not(.fine) .fbedbar{top:auto;bottom:calc(10px + env(safe-area-inset-bottom))}
+  body.fs:not(.fine) .cropsize{bottom:calc(62px + env(safe-area-inset-bottom))}
+  body.fs:not(.fine):not(.ui-hidden) .preview-card.edopen .canvas-wrap{padding-top:env(safe-area-inset-top);padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+}
+.preview-card:has(.fbed) .zoomhud{visibility:hidden} /* zoomen används inte medan man beskär – raden låg under Mitten/Ingen/Klar */
+html.bs-s .iconbtn.fsbtn{height:40px!important;min-height:40px!important}
+html.bs-s .fbedbar .btn{font-size:13px;white-space:nowrap}
+@media (max-width:374px) and (orientation:portrait){ html.bs-l body:not(.fs) .stage-tools .pill{zoom:1} }
+@media (orientation:landscape) and (max-height:500px) and (max-width:700px){ html.bs-l body:not(.fs) .stage-tools .pill{zoom:1} body:not(.fs) .stage-tools{left:6px;gap:4px} body:not(.fs) .stage-tools .pill{padding:4px 9px} }
+@media (max-width:374px) and (orientation:portrait),(orientation:landscape) and (max-height:540px){ html.bs-l body.fs:not(.fine) .stage-tools{top:calc(74px + env(safe-area-inset-top))} } html.bs-l body.fs:not(.fine) .badge{top:calc(74px + env(safe-area-inset-top))} /* Stor: knapparna uppe är högre */
 </style>
 </head>
 <body>
@@ -2129,14 +2193,41 @@ function buildTextPanel(pane, t, onChange) {
 var P = { img: null, url: null, name: 'bild', srcW: 0, srcH: 0, look: blankLook(), text: defaultText(),
   prev: null, out: null, dirty: true, compare: false, zoom: false, fmt: 'jpeg', quality: 92, pending: false };
 var photoCanvas = $('#photoCanvas'), photoCtx = photoCanvas.getContext('2d');
-var WEBP_OK = (function () { try { var c = document.createElement('canvas'); c.width = c.height = 2; return c.toDataURL('image/webp').indexOf('data:image/webp') === 0; } catch (e) { return false; } })();
+/* v14c: WebP finns inte längre som exportformat – allt som pekar på webp (äldre inställningar m.m.) blir JPEG */
+function expFmt(f) { return f === 'png' ? 'png' : 'jpeg'; }
 var PREVIEW_MAX = (function () { // stor skärm med mus: buffert efter devicePixelRatio (tak 3200 px), annars 1600
   try { if (matchMedia('(pointer: fine)').matches && window.innerWidth >= 1280) return Math.min(3200, Math.max(1600, Math.round(Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) * 0.6))); } catch (e) {}
   return 1600; })(); // förhandsvisning; export sker alltid i originalets storlek (renderNative)
 
-function prepSource(img, w, h) {
+/* v14c p3: rotation – q = antal 90°-steg medurs, a = fin vinkel i grader (±45). Bilden ritas med en transform direkt ur
+   originalet (ingen roterad kopia i full storlek – viktigt för minnet på 48 MP). Fin vinkel beskärs automatiskt till den
+   största rutan med samma proportion som ryms helt i den roterade bilden (inga tomma hörn), i skala 1:1. */
+function rotOn(r) { return !!r && (((r.q || 0) & 3) !== 0 || Math.abs(r.a || 0) > 0.01); }
+function rotGeo(W, H, r) {
+  var q = ((r && r.q) || 0) & 3, Wq = q & 1 ? H : W, Hq = q & 1 ? W : H, rad = ((r && r.a) || 0) * Math.PI / 180, c = Math.cos(Math.abs(rad)), sn = Math.sin(Math.abs(rad));
+  var z = Math.max((Wq * c + Hq * sn) / Wq, (Wq * sn + Hq * c) / Hq);
+  return { w: Math.max(1, Math.floor(Wq / z + 1e-6)), h: Math.max(1, Math.floor(Hq / z + 1e-6)), q: q, rad: rad };
+}
+/* ritar utsnittet (sx, sy, sw, sh) i det roterade rummet till (0, 0, dw, dh) */
+function drawSrc(ctx, img, r, sx, sy, sw, sh, dw, dh) {
+  if (!rotOn(r)) { ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh); return; }
+  var W = img.naturalWidth || img.width, H = img.naturalHeight || img.height, g = rotGeo(W, H, r), kx = dw / sw, ky = dh / sh;
+  ctx.save(); ctx.setTransform(kx, 0, 0, ky, -sx * kx, -sy * ky); ctx.translate(g.w / 2, g.h / 2); ctx.rotate(g.q * Math.PI / 2 + g.rad); ctx.translate(-W / 2, -H / 2);
+  if (Math.abs(g.rad) > 1e-6) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; }
+  ctx.drawImage(img, 0, 0); ctx.restore();
+}
+/* JPEG-blockfixen arbetar i bildens rutnät: vid 90°-steg flyttas fasen med, vid fin vinkel finns inget rutnät kvar (fixen av) */
+function rotLook(lk, r, Wn, Hn) {
+  if (!rotOn(r) || !jpegAmount(lk)) return lk;
+  if (Math.abs(r.a || 0) > 0.01) return Object.assign({}, lk, { jpgOn: false });
+  var J = lk.jpeg || JPEG_DEFAULT, px = J.phase[0], py = J.phase[1], q = (r.q || 0) & 3, ph;
+  ph = q === 1 ? [Hn - py, px] : q === 2 ? [Wn - px, Hn - py] : [py, Wn - px];
+  return Object.assign({}, lk, { jpeg: Object.assign({}, J, { phase: [((ph[0] % 16) + 16) % 16, ((ph[1] % 16) + 16) % 16] }) });
+}
+function prepSource(img, w, h, rot) {
   var c = document.createElement('canvas'); c.width = w; c.height = h;
-  var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, w, h);
+  var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+  if (rotOn(rot)) { var g = rotGeo(img.naturalWidth || img.width, img.naturalHeight || img.height, rot); drawSrc(x, img, rot, 0, 0, g.w, g.h, w, h); } else x.drawImage(img, 0, 0, w, h);
   var id = x.getImageData(0, 0, w, h), L = computeLum(id.data, w * h);
   return { canvas: c, ctx: x, data: id, L: L, clar: buildClarity(L, w, h), w: w, h: h };
 }
@@ -2148,7 +2239,7 @@ function loadPhoto(file, done) {
     setTimeout(function () {
       try {
         var oldP = P.url; if (oldP) setTimeout(function () { revokeSafe(oldP); }, 3000);
-        P.img = img; P.url = url; P.srcW = img.naturalWidth; P.srcH = img.naturalHeight;
+        P.img = img; P.url = url; P.srcW = P.natW = img.naturalWidth; P.srcH = P.natH = img.naturalHeight; P.rot = { q: 0, a: 0 }; if (window.rotSync) rotSync();
         P.name = (file.name || 'bild').replace(/\.[^.]+$/, '').replace(/[^\w\-åäöÅÄÖ]+/g, '_').slice(0, 40) || 'bild';
         var s = fitSize(P.srcW, P.srcH, PREVIEW_MAX);
         P.prev = prepSource(img, s.w, s.h);
@@ -2182,14 +2273,14 @@ function buildJpegPreview(lk, key) {
      512 px bredd (+16 px marginal, läst ur bandets orörda kopia) med en paus mellan rutorna – huvudtråden blockeras
      aldrig länge (förut hela bilden i ett svep: ~14 s på 48 MP). */
   if (P.jpgPending !== key || !P.img) return;
-  var img = P.img, prev = P.prev, W = P.srcW, H = P.srcH, pw = prev.w, ph = prev.h, band = Math.max(64, Math.floor(4e6 / W / 8) * 8), m = 16, TW = 512;
+  var img = P.img, prev = P.prev, rot = P.rot, lkr = rotLook(lk, P.rot, P.natW, P.natH), W = P.srcW, H = P.srcH, pw = prev.w, ph = prev.h, band = Math.max(64, Math.floor(4e6 / W / 8) * 8), m = 16, TW = 512;
   var out = document.createElement('canvas'); out.width = pw; out.height = ph; var ox = out.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high';
   var bc = document.createElement('canvas'), bx = bc.getContext('2d', { willReadFrequently: true });
   var y = 0, top = 0, bh = 0, hh = 0, src = null, res = null, x = W, tb = null;
   function alive() { return P.jpgPending === key && P.img === img && P.prev === prev; }
   function bandStart() {
     top = Math.max(0, y - m); bh = Math.min(band, H - y); hh = Math.min(H, y + bh + m) - top;
-    bc.width = W; bc.height = hh; bx.drawImage(img, 0, top, W, hh, 0, 0, W, hh);
+    bc.width = W; bc.height = hh; drawSrc(bx, img, rot, 0, top, W, hh, W, hh);
     src = bx.getImageData(0, 0, W, hh); res = bx.createImageData(W, hh); x = 0;
   }
   function tile() { // ruta [x, x+tw) med marginal, rensas ur src och skrivs (utan marginal) till res
@@ -2197,7 +2288,7 @@ function buildJpegPreview(lk, key) {
     if (!tb || tb.length !== n) tb = new Uint8ClampedArray(n);
     var S = src.data, R = res.data, k, row;
     for (row = 0; row < hh; row++) tb.set(S.subarray((row * W + l) * 4, (row * W + r) * 4), row * ww * 4);
-    if (jpegFixRGBA(tb, ww, hh, lk, l, top) === false) { for (row = 0; row < hh; row++) R.set(S.subarray((row * W + x) * 4, (row * W + x + tw) * 4), (row * W + x) * 4); }
+    if (jpegFixRGBA(tb, ww, hh, lkr, l, top) === false) { for (row = 0; row < hh; row++) R.set(S.subarray((row * W + x) * 4, (row * W + x + tw) * 4), (row * W + x) * 4); }
     else for (row = 0; row < hh; row++) { k = (row * ww + (x - l)) * 4; R.set(tb.subarray(k, k + tw * 4), (row * W + x) * 4); }
     x += TW;
   }
@@ -2348,17 +2439,20 @@ function renderNative(source, look, text, mime, quality, prog, opts) {
   var t0 = Date.now();
   return (text && text.text ? ensureFont(text) : Promise.resolve()).then(function () { return getDrawable(source); }).then(function (d) {
     var W = d.naturalWidth || d.width, H = d.naturalHeight || d.height, note = null;
+    var RT = opts && rotOn(opts.rot) ? opts.rot : null; // v14c p3: rotation – allt nedan arbetar i det roterade rummet
+    if (RT) { var g0 = rotGeo(W, H, RT); look = rotLook(look, RT, W, H); W = g0.w; H = g0.h; }
     var C = opts && opts.crop, cx = 0, cy = 0, OW = W, OH = H; // v14 p8: fri beskärning – hela bilden räknas (samma utseende), bara rutan kodas
     if (C) { cx = Math.max(0, Math.min(W - 1, Math.round(C.x))); cy = Math.max(0, Math.min(H - 1, Math.round(C.y))); OW = Math.max(1, Math.min(W - cx, Math.round(C.w))); OH = Math.max(1, Math.min(H - cy, Math.round(C.h))); }
     var big = OW * OH > CANVAS_MAX_PX;
-    if (big && mime !== 'image/jpeg') { note = 'Bilden är större än webbläsarens gräns för ' + (mime === 'image/png' ? 'PNG' : 'WebP') + ' – den sparades som JPEG i full upplösning.'; mime = 'image/jpeg'; }
+    if (mime !== 'image/png') mime = 'image/jpeg'; // v14c: aldrig WebP
+    if (big && mime !== 'image/jpeg') { note = 'Bilden är större än webbläsarens gräns för PNG – den sparades som JPEG i full upplösning.'; mime = 'image/jpeg'; }
     var sr = sharpRadius(W, H), m = sr + 3 + nrMargin(look, W, H) + jpegMargin(look), nf = noiseScale(look.noise, W, H), bandH = Math.max(16, Math.floor(((W * H > BIG_MP ? BAND_PX_BIG : BAND_PX) / W - 2 * m) / 16) * 16); // v13 p19: smalare band för stora bilder (lägre minnestopp)
     var bc = document.createElement('canvas'); bc.width = W; bc.height = Math.min(H, bandH) + 2 * m;
     var bx = bc.getContext('2d', { willReadFrequently: true }); bx.imageSmoothingEnabled = false;
     var wmOn = text !== false && !(opts && opts.noWM) && typeof WM !== 'undefined' && WM.on && typeof drawWatermark === 'function', enc2 = null;
     var out = null, ox = null, enc = null, nb = Math.ceil(H / bandH), passes = (look.clarity || look.hdr) ? 2 : 1, step = 0;
     function tick() { step++; if (prog) prog(step / (nb * passes)); return new Promise(function (r) { setTimeout(r, 0); }); }
-    function read(top, hh) { bx.clearRect(0, 0, W, bc.height); bx.drawImage(d, 0, top, W, hh, 0, 0, W, hh); return bx.getImageData(0, 0, W, hh); }
+    function read(top, hh) { bx.clearRect(0, 0, W, bc.height); drawSrc(bx, d, RT, 0, top, W, hh, W, hh); return bx.getImageData(0, 0, W, hh); }
     var acc = (look.clarity || look.hdr) ? clarityAcc(W, H) : null, chain = Promise.resolve();
     if (acc) for (var y = 0; y < H; y += bandH) (function (y0) { chain = chain.then(function () {
       var bh = Math.min(bandH, H - y0), id = read(y0, bh); clarityAdd(acc, computeLum(id.data, W * bh), W, bh, y0); return tick(); }); })(y);
@@ -2406,9 +2500,9 @@ function exportPhoto() {
   if (window.expBegin) expBegin(false);
   busy(true, 'Skapar bild i originalstorlek…', { progress: true });
   setTimeout(function () {
-    var mime = 'image/' + P.fmt;
+    P.fmt = expFmt(P.fmt); var mime = 'image/' + P.fmt;
     if (P.wmBaked && WM.on) toast('Den här bilden har redan en vattenstämpel');
-    renderNative(P.srcFile || P.img, P.look, P.text, mime, P.quality, busyProgress, { clean: true, noWM: !!P.wmBaked, crop: typeof cropRect === 'function' ? cropRect() : null }).then(function (res) {
+    renderNative(P.srcFile || P.img, P.look, P.text, mime, P.quality, busyProgress, { clean: true, noWM: !!P.wmBaked, crop: typeof cropRect === 'function' ? cropRect() : null, rot: P.rot }).then(function (res) {
       busy(false);
       var blob = res.blob, sub = (blob.type || mime).split('/')[1] || 'jpeg', ext = sub === 'jpeg' ? 'jpg' : sub;
       if (res.note) toast(res.note, 5000);
@@ -2901,7 +2995,14 @@ document.addEventListener('visibilitychange', function () {
    PANELER OCH NAVIGERING
    ========================================================================= */
 var sheet = $('#sheet'), panes = {}, photoTool = null, videoTool = null, mode = 'photo';
-var HOME_NOTE = 'Lägg till på hemskärmen via Safari för att använda den som en app. Bilder väljs från Bilder/iCloud och sparas via Dela.';
+/* v14c p4: tipset om hemskärmen visas på startsidan (inte längre i Exportera) – döljs när appen redan körs från hemskärmen */
+var HOME_TIP = 'Lägg till på hemskärmen via Safari för att använda som en app.';
+(function () {
+  var standalone = false; try { standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; } catch (e) {}
+  if (standalone) return;
+  ['#photoEmpty', '#videoEmpty'].forEach(function (s) { var e = $(s); if (!e) return;
+    e.append(el('p', { class: 'hometip', role: 'note' }, [el('span', { class: 'hometip-i', 'aria-hidden': 'true', text: '💡' }), el('span', { text: HOME_TIP })])); });
+})();
 function pane(id) { var p = el('div', { class: 'pane hidden', id: id }); sheet.append(p); panes[id] = p; return p; }
 var TOOLS = {
   photo: [['p-style', 'Stilar', ICON.style], ['p-adjust', 'Justera', ICON.adjust], ['p-text', 'Text', ICON.text], ['p-export', 'Exportera', ICON.share], ['p-saved', 'Sparade', ICON.gallery]],
@@ -3096,20 +3197,17 @@ buildTextPanel(pane('p-text'), P.text, function () { photoUserChange(); });
   p.append(el('h3', { text: 'Exportera bild' }));
   var seg = el('div', { class: 'seg full' });
   var qs = makeSlider({ label: 'Kvalitet', min: 50, max: 100, def: 92, value: P.quality, noMod: true, fmt: function (v) { return Math.round(v) + ' %'; }, onInput: function (v) { P.quality = v; } });
-  [['jpeg', 'JPEG'], ['png', 'PNG'], ['webp', 'WebP']].forEach(function (f) {
+  [['jpeg', 'JPEG'], ['png', 'PNG']].forEach(function (f) { // v14c: WebP borttaget som exportformat
     var b = el('button', { type: 'button', class: f[0] === P.fmt ? 'on' : '', text: f[1], onclick: function () {
       P.fmt = f[0]; [].forEach.call(seg.children, function (x) { x.classList.toggle('on', x === b); });
       qs.el.classList.toggle('hidden', f[0] === 'png');
     } });
-    if (f[0] === 'webp' && !WEBP_OK) { b.disabled = true; b.title = 'WebP-export stöds inte i den här webbläsaren'; }
     seg.append(b);
   });
   p.append(el('div', { class: 'ctl-head' }, [el('span', { class: 'ctl-label', text: 'Format' })]), el('div', { style: 'margin:6px 0 8px' }, [seg]), qs.el);
-  if (!WEBP_OK) p.append(el('p', { class: 'info', text: 'WebP kan inte skapas i den här webbläsaren (Safari saknar WebP-kodning). Använd JPEG eller PNG.' }));
   p.append(el('p', { class: 'info', id: 'photoInfo', text: 'Ingen bild vald.' }));
   p.append(el('button', { type: 'button', class: 'btn primary block', html: ICON.share + 'Exportera bild', onclick: exportPhoto }));
   p.append(el('div', { id: 'photoResult', class: 'hidden' }));
-  p.append(el('p', { class: 'note', style: 'margin-top:14px', text: HOME_NOTE }));
 })();
 
 /* --- Film: Justera --- */
@@ -3197,7 +3295,6 @@ function stopPreviewMusic() { if (previewSrc) { try { previewSrc.stop(); } catch
   p.append(el('div', { class: 'row vresrow' }, [el('span', { class: 'lbl', text: 'Upplösning' })]), rs, el('p', { class: 'info', id: 'vresInfo' }));
   p.append(el('button', { type: 'button', class: 'btn primary block', id: 'vexpBtn', html: ICON.share + 'Exportera film', onclick: function () { exportVideo(); } }));
   p.append(el('div', { id: 'videoResult', class: 'hidden' }));
-  p.append(el('p', { class: 'note', style: 'margin-top:14px', text: HOME_NOTE }));
 })();
 function refreshVideoExport() {
   var sup = videoExportSupport(), st = $('#vexpStatus'), btn = $('#vexpBtn');
@@ -3257,6 +3354,8 @@ function refit() {
 setPlayIcon();
 initGL();
 window.addEventListener('resize', function () { requestAnimationFrame(refit); });
+/* v14c p6: redigeraren (beskärning/FB) ger bilden plats under raden Klar/Mitten – ytan räknas om direkt */
+function edLayout(on) { var c = $('#photoCard'); if (!c || c.classList.contains('edopen') === !!on) return; c.classList.toggle('edopen', !!on); refit(); }
 window.addEventListener('orientationchange', function () { setTimeout(refit, 300); });
 if (window.visualViewport) visualViewport.addEventListener('resize', function () { if (Math.abs((visualViewport.scale || 1) - 1) > 0.01) return; requestAnimationFrame(refit); }); // v14: sidzoom (iOS) ska inte trigga omplacering mitt i en gest
 /* v14: iOS ignorerar user-scalable=no – stoppa webbläsarens egen sidzoom (den zoomade hela gränssnittet och krockade med bildens nyp) */
@@ -3875,8 +3974,8 @@ function openBatchSheet(opts) {
     el('p', { class: 'info', text: 'Varje bild får en Ångra-knapp. Originalet sparas också.' }),
     (function () { // Exportera alla: format/kvalitet från Exportera, plus Facebook-alternativet
       var fbCb = el('input', { type: 'checkbox', id: 'exportAllFb', 'aria-label': 'Spara för Facebook' });
-      var fseg = el('div', { class: 'seg full', id: 'exportAllFmt' }), fmt = P.fmt || 'jpeg';
-      [['jpeg', 'JPEG'], ['png', 'PNG'], ['webp', 'WebP']].forEach(function (f) { if (f[0] === 'webp' && typeof WEBP_OK !== 'undefined' && !WEBP_OK) return; fseg.append(el('button', { type: 'button', 'data-f': f[0], class: f[0] === fmt ? 'on' : '', text: f[1], onclick: function () { fmt = f[0]; [].forEach.call(fseg.children, function (b) { b.classList.toggle('on', b.getAttribute('data-f') === fmt); }); } })); });
+      var fseg = el('div', { class: 'seg full', id: 'exportAllFmt' }), fmt = expFmt(P.fmt);
+      [['jpeg', 'JPEG'], ['png', 'PNG']].forEach(function (f) { fseg.append(el('button', { type: 'button', 'data-f': f[0], class: f[0] === fmt ? 'on' : '', text: f[1], onclick: function () { fmt = f[0]; [].forEach.call(fseg.children, function (b) { b.classList.toggle('on', b.getAttribute('data-f') === fmt); }); } })); });
       var eb = el('button', { type: 'button', class: 'btn block outline-blue', id: 'exportAllBtn', text: 'Exportera alla (' + ids.length + ')', onclick: function () {
         var look = curLook(), auto = autoCb.checked, text = curText(), run = ids.slice(); close(); exportAll(run, look, auto, text, { fmt: fmt, quality: P.quality, facebook: fbCb.checked }); } });
       return el('div', { class: 'exportall' }, [el('h4', { text: 'Exportera' }), fseg, el('div', { class: 'row' }, [el('span', { class: 'lbl', text: 'Spara för Facebook (1200 px, ' + FB_OPTS[FB.aspect].label.replace(/ \(.*$/, '') + ')' }), el('label', { class: 'switch' }, [fbCb, el('span')])]), eb]);
@@ -3902,7 +4001,7 @@ function runBatch(ids, look, text, batchLabel, auto) {
     var id = ids[i]; $('#busyText').textContent = 'Bearbetar bild ' + (i + 1) + ' av ' + ids.length + '…'; busyProgress(i / ids.length);
     galGet(id).then(function (r) {
       if (!r) throw new Error('saknas');
-      var mime = r.type === 'image/png' || r.type === 'image/webp' ? r.type : 'image/jpeg';
+      var mime = r.type === 'image/png' ? r.type : 'image/jpeg'; // v14c: WebP blir JPEG
       return analysisFor(r.blob, auto).then(function (an) {
         var lk = JSON.parse(JSON.stringify(look)); if (an.al) lk.autoLevels = an.al; lk.noise = an.noise; lk.jpeg = an.jpeg; if (lk.hdr && lk.adaptPer && an.stats) crystalAdaptLook(lk, null, an.stats); if (!lk.nrUser) crystalClean(lk); r._lk = lk; // brus per bild (v14: + Kristallklar per bild)
         return renderNative(r.blob, lk, text, mime, 92, function (f) { busyProgress((i + f) / ids.length); }, { noWM: true }) /* N1: Applicera bränner aldrig in vattenmärket i Sparade – det läggs bara på vid export */.then(function (res) { return res.blob; }); }).then(function (blob) {
@@ -4383,7 +4482,7 @@ function renderRegionScaled(img, look, text, W, H, sx, sy, sw, sh, f) {
   if (cw < 1 || ch < 1) return null;
   var bc = document.createElement('canvas'); bc.width = cw; bc.height = ch;
   var bx = bc.getContext('2d', { willReadFrequently: true }); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high';
-  bx.drawImage(img, l / f, t / f, cw / f, ch / f, 0, 0, cw, ch);
+  drawSrc(bx, img, img === P.img ? P.rot : null, l / f, t / f, cw / f, ch / f, cw, ch); // v14c p3
   var id = bx.getImageData(0, 0, cw, ch);
   denoiseRGBA(id.data, cw, ch, lk, [Ws, Hs]);
   var L = computeLum(id.data, cw * ch), SB = null;
@@ -4400,9 +4499,9 @@ function renderRegionNative(img, look, text, W, H, sx, sy, sw, sh) {
   var sr = sharpRadius(W, H), m = sr + 3 + nrMargin(look, W, H) + jpegMargin(look);
   var l = Math.max(0, Math.floor((sx - m) / 8) * 8), t = Math.max(0, Math.floor((sy - m) / 8) * 8), r = Math.min(W, sx + sw + m), b = Math.min(H, sy + sh + m), cw = r - l, ch = b - t;
   var bc = document.createElement('canvas'); bc.width = cw; bc.height = ch;
-  var bx = bc.getContext('2d', { willReadFrequently: true }); bx.imageSmoothingEnabled = false; bx.drawImage(img, l, t, cw, ch, 0, 0, cw, ch);
+  var bx = bc.getContext('2d', { willReadFrequently: true }); bx.imageSmoothingEnabled = false; drawSrc(bx, img, img === P.img ? P.rot : null, l, t, cw, ch, cw, ch);
   var id = bx.getImageData(0, 0, cw, ch);
-  jpegFixRGBA(id.data, cw, ch, look, l, t); // fasen bevaras: utsnittets start på 8-multipel
+  jpegFixRGBA(id.data, cw, ch, img === P.img ? rotLook(look, P.rot, P.natW, P.natH) : look, l, t); // fasen bevaras: utsnittets start på 8-multipel
   denoiseRGBA(id.data, cw, ch, look, [W, H]);
   var L = computeLum(id.data, cw * ch), SB = null;
   if (look.sharpness !== 0 && sr > 1) { SB = new Float32Array(L); boxBlur(SB, cw, ch, sr); }
@@ -4446,7 +4545,7 @@ function openHelp() {
   function shut() { lay.remove(); document.removeEventListener('keydown', onKey, true); }
   function onKey(e) { if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); e.stopPropagation(); shut(); } }
   lay.append(el('div', { class: 'cdlg-box helpbox' }, [el('h3', { text: 'Kortkommandon' }), tb, el('p', { class: 'info', text: 'Batchredigera: ← → bläddrar i den stora förhandsvisningen. Exportera alla (N) laddar ner en ZIP med alla valda bilder i full upplösning.' }),
-      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v14: Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
+      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v14: Exportformat JPEG eller PNG (WebP borttaget). Rotera 90° och Räta upp (±45°, automatisk beskärning) under Exportera → Beskärning. Tips om hemskärmen på startsidan. Knappstorlek Liten är nu ännu mindre (40 px tryckyta). Större bildyta i alla lägen – knapparna ligger ovanpå bilden. Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
   lay.addEventListener('click', function (e) { if (e.target === lay) shut(); });
   document.addEventListener('keydown', onKey, true); document.body.append(lay); var fb = lay.querySelector('.btn.primary'); if (fb) fb.focus();
 }
@@ -4584,7 +4683,7 @@ function exportFacebook() {
   busy(true, 'Skapar bild för Facebook…', { progress: true });
   setTimeout(function () {
     var W = P.srcW, H = P.srcH, inter = W * H <= CANVAS_MAX_PX ? 'image/png' : 'image/jpeg';
-    renderNative(P.srcFile || P.img, P.look, P.text, inter, 100, function (f) { busyProgress(f * 0.85); }, { noWM: true }).then(function (res) {
+    renderNative(P.srcFile || P.img, P.look, P.text, inter, 100, function (f) { busyProgress(f * 0.85); }, { noWM: true, rot: P.rot }).then(function (res) {
       return getDrawable(res.blob).then(function (d) {
         var t = fbTarget(d.width || d.naturalWidth, d.height || d.naturalHeight), c = fbDownscale(d, t.crop, t.w, t.h); if (d.close) d.close();
         fbSharpen(c, 0.35); busyProgress(0.95);
@@ -4670,10 +4769,10 @@ function fbOpenEditor() {
   document.addEventListener('keydown', onKey, true);
   function done() {
     clamp(); var key = fbKey(); FB.crops[key] = FB.crops[key] || {}; FB.crops[key][FB.aspect] = { x: cur.x, y: cur.y, w: cur.w, h: cur.h };
-    document.removeEventListener('keydown', onKey, true); ed.remove(); fbCropUpdate();
+    document.removeEventListener('keydown', onKey, true); ed.remove(); edLayout(false); fbCropUpdate();
   }
   FB.editor = { cur: function () { return cur; }, done: done };
-  draw();
+  edLayout(true); draw();
 }
 function fbCropUpdate() {
   if (typeof fbPreviewDraw === 'function') try { fbPreviewDraw(); } catch (e) {}
@@ -4758,7 +4857,7 @@ function fmtLeft(sec) { if (!isFinite(sec) || sec <= 0) return ''; if (sec < 50)
 var EXPORT_FS_OK = function () { return !!window.showSaveFilePicker && !window.KB_NO_FS && matchMedia('(pointer: fine)').matches; };
 function exportAll(ids, look, auto, text, opts) {
   if (window.expBegin) expBegin(false, true); wmTold = false;
-  opts = opts || {}; var fmt = opts.fmt || P.fmt || 'jpeg', q = opts.quality || P.quality || 92, fb = !!opts.facebook, N = ids.length;
+  opts = opts || {}; var fmt = expFmt(opts.fmt || P.fmt), q = opts.quality || P.quality || 92, fb = !!opts.facebook, N = ids.length;
   var touch = !matchMedia('(pointer: fine)').matches, share = touch && shareSupportedFor([new File([new Blob(['x'])], 'x.jpg', { type: 'image/jpeg' })]);
   if (!share && EXPORT_FS_OK()) {
     window.showSaveFilePicker({ suggestedName: 'klarbild-export-' + stamp() + '.zip', types: [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }] })
@@ -4792,7 +4891,7 @@ function runExport(ids, look, auto, text, fmt, q, fb, how) {
             return new Promise(function (ok, bad) { c.toBlob(function (b) { c.width = c.height = 1; b ? ok(b) : bad(new Error('toBlob')); }, mime, FB.png ? undefined : 0.95); });
           });
         }).then(function (blob) {
-          var ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg', nm = exportAllName(r, used, ext, fb);
+          var ext = blob.type === 'image/png' ? 'png' : 'jpg', nm = exportAllName(r, used, ext, fb);
           names.push({ name: nm, size: blob.size, type: blob.type }); if (window.KB_TEST) window.__expAllLast = blob; bytes += blob.size; done++;
           if (zw) return zw.add(nm, blob);
           pend.push(new File([blob], nm, { type: blob.type }));
@@ -5440,6 +5539,7 @@ function cropUpdate() {
 }
 function cropSetMode(mode) {
   if (!P.img) { toast('Välj en bild först.'); return; }
+  if (CROP.editor) CROP.editor.discard(); // v14c p2: en öppen redigerare hade kvar förra proportionens ruta (cur/ar i stängningen) och sparade den vid Klar – stäng den och öppna en ny
   var key = fbKey(), W = P.srcW, H = P.srcH, old = CROP.c[key];
   if (mode === 'none') { CROP.c[key] = { mode: 'none' }; cropUpdate(); photoUserChange(); return; }
   var ar = cropAr(mode), r;
@@ -5498,13 +5598,13 @@ function cropOpenEditor() {
   ed.addEventListener('wheel', function (e) { e.preventDefault(); e.stopPropagation(); var f = Math.exp(e.deltaY * 0.0015), cx = cur.x + cur.w / 2, cy = cur.y + cur.h / 2; cur.w *= f; cur.h = ar ? cur.w / ar : cur.h * f; cur.x = cx - cur.w / 2; cur.y = cy - cur.h / 2; draw(); }, { passive: false });
   function onKey(e) { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); finish(true); } }
   document.addEventListener('keydown', onKey, true);
-  var onRs = function () { draw(); }; window.addEventListener('resize', onRs);
-  function finish(keep) {
+  var onRs = function () { requestAnimationFrame(function () { requestAnimationFrame(draw); }); }; window.addEventListener('resize', onRs);
+  function finish(keep, quiet) {
     if (keep) { clamp(); var k = fbKey(), m = (CROP.c[k] || {}).mode || 'free'; CROP.c[k] = { mode: m, x: cur.x, y: cur.y, w: cur.w, h: cur.h }; }
-    document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onRs); ed.remove(); CROP.editor = null; cropUpdate(); photoUserChange();
+    document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onRs); ed.remove(); CROP.editor = null; edLayout(false); if (quiet) return; cropUpdate(); photoUserChange();
   }
-  CROP.editor = { cur: function () { return cur; }, set: function (r) { cur = Object.assign({}, r); draw(); }, done: function () { finish(true); } };
-  draw();
+  CROP.editor = { cur: function () { return cur; }, set: function (r) { cur = Object.assign({}, r); draw(); }, done: function () { finish(true); }, discard: function () { finish(false, true); } };
+  edLayout(true); draw();
 }
 (function () {
   var p = panes['p-export']; if (!p) return;
@@ -5513,6 +5613,17 @@ function cropOpenEditor() {
   var card = el('div', { class: 'card cropcard', id: 'cropCard' }, [el('div', { class: 'ctl-head' }, [el('span', { class: 'ctl-label', text: 'Beskärning' })]), seg,
     el('button', { type: 'button', class: 'btn block hidden', id: 'cropAdjust', text: 'Justera beskärning', onclick: cropOpenEditor }),
     el('p', { class: 'info', id: 'cropInfo', style: 'margin:6px 0 0' })]);
+  /* v14c p3: rotation – 90° vänster/höger och Räta upp (±45°, beskärs automatiskt så att inga tomma hörn syns) */
+  var rseg = el('div', { class: 'seg full cropseg rotseg', id: 'rotSeg', role: 'group', 'aria-label': 'Rotera' }, [
+    el('button', { type: 'button', id: 'rotLeft', 'aria-label': 'Rotera 90° åt vänster', title: 'Rotera 90° åt vänster', text: '⟲ 90°', onclick: function () { rotApply((P.rot ? P.rot.q : 0) - 1, P.rot ? P.rot.a : 0); } }),
+    el('button', { type: 'button', id: 'rotRight', 'aria-label': 'Rotera 90° åt höger', title: 'Rotera 90° åt höger', text: '⟳ 90°', onclick: function () { rotApply((P.rot ? P.rot.q : 0) + 1, P.rot ? P.rot.a : 0); } }),
+    el('button', { type: 'button', id: 'rotReset', 'aria-label': 'Ta bort rotationen', title: 'Ta bort rotationen', text: 'Nollställ', onclick: function () { rotApply(0, 0); } })]);
+  var rt = 0, rsl = makeSlider({ label: 'Räta upp', min: -45, max: 45, step: 0.5, def: 0, value: 0, cls: 'rotslider', fmt: function (v) { return (v > 0 ? '+' : '') + String(v).replace('.', ',') + '°'; },
+    onInput: function (v) { clearTimeout(rt); rt = setTimeout(function () { rotApply(P.rot ? P.rot.q : 0, v); }, 140); },
+    onChange: function (v) { clearTimeout(rt); rotApply(P.rot ? P.rot.q : 0, v); } });
+  rsl.input.id = 'rotFine';
+  window.rotSync = function () { var r = P.rot || { q: 0, a: 0 }; if (+rsl.get() !== r.a) rsl.set(r.a); var i = $('#rotInfo'); if (!i) return; var t = (((r.q * 90 + r.a) % 360) + 360) % 360; if (t > 180) t -= 360; i.textContent = rotOn(r) ? 'Roterad ' + (t > 0 ? '+' : '') + String(t).replace('.', ',') + '° · ' + P.srcW + ' × ' + P.srcH + ' px' : ''; };
+  card.append(el('div', { class: 'ctl-head', style: 'margin-top:12px' }, [el('span', { class: 'ctl-label', text: 'Rotera' })]), rseg, rsl.el, el('p', { class: 'info', id: 'rotInfo', style: 'margin:4px 0 0' }));
   var anchor = $('#wmCardP') || p.querySelector('.btn.primary'); if (anchor) p.insertBefore(card, anchor); else p.append(card);
   var o = openTool; openTool = function (id) { var r = o.apply(this, arguments); if (id !== 'p-export' && CROP.editor) CROP.editor.done(); setTimeout(cropUpdate, 40); return r; };
   window.addEventListener('resize', function () { setTimeout(cropUpdate, 160); });
@@ -5522,6 +5633,30 @@ function cropOpenEditor() {
   var ou = updatePhotoInfo; updatePhotoInfo = function () { ou.apply(this, arguments); var c = cropRect(), i = $('#photoInfo'); if (c && i) i.textContent = 'Original ' + P.srcW + ' × ' + P.srcH + ' px · beskärs till ' + c.w + ' × ' + c.h + ' px (' + (c.w * c.h / 1e6).toFixed(1).replace('.', ',') + ' Mpx).'; };
   cropUpdate();
 })();
+
+/* v14c p3: ny rotation – förhandsbilden byggs om ur originalet (bara i förhandsstorlek), beskärningen behåller sitt läge */
+function rotApply(nq, na) {
+  if (!P.img) { toast('Välj en bild först.'); return; }
+  var q = ((Math.round(nq) % 4) + 4) % 4, a = Math.max(-45, Math.min(45, Math.round((+na || 0) * 2) / 2));
+  if (P.rot && P.rot.q === q && P.rot.a === a) return;
+  if (CROP.editor) CROP.editor.discard();
+  var mode = (cropCur() || {}).mode || 'none';
+  P.rot = { q: q, a: a };
+  var g = rotGeo(P.natW, P.natH, P.rot), s = fitSize(g.w, g.h, PREVIEW_MAX);
+  P.srcW = g.w; P.srcH = g.h;
+  PJ.gen++; PJ.running = false; P.jpgPending = null; P.jpgCache = null; P.nrCache = null; P.holdBase = null;
+  if (typeof dskTileClear === 'function') dskTileClear();
+  P.prev = prepSource(P.img, s.w, s.h, P.rot); P.out = new ImageData(s.w, s.h);
+  photoCanvas.width = s.w; photoCanvas.height = s.h; photoCtx.putImageData(P.prev.data, 0, 0);
+  var key = fbKey();
+  if (mode !== 'none') { var ar = cropAr(mode), r = ar ? fbCenter(g.w, g.h, ar) : { x: Math.round(g.w * 0.08), y: Math.round(g.h * 0.08), w: Math.round(g.w * 0.84), h: Math.round(g.h * 0.84) }; CROP.c[key] = { mode: mode, x: r.x, y: r.y, w: r.w, h: r.h }; }
+  else CROP.c[key] = { mode: 'none' };
+  if (typeof FB !== 'undefined' && FB.crops) delete FB.crops[key];
+  releaseCmpLock(); setPhotoZoom(0);
+  P.dirty = true; P.lookSeq = (P.lookSeq || 0) + 1; requestPhotoRender(false);
+  try { buildPresetThumbs(); } catch (e) {} try { updatePhotoInfo(); } catch (e) {}
+  rotSync(); cropUpdate();
+}
 
 </script>
 </body>
