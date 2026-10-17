@@ -816,6 +816,8 @@ html.bs-l .fbedbar .btn,html.bs-m .fbedbar .btn{zoom:1}
 .fbh.fbe.e{right:-22px;top:50%;margin-top:-22px;cursor:ew-resize}.fbh.fbe.e::after{width:5px;height:22px;top:11px;right:20px}
 .cropsize{position:absolute;left:50%;bottom:calc(8px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9;padding:3px 10px;border-radius:999px;background:rgba(11,26,46,.75);color:#fff;font-size:12px;font-weight:700;pointer-events:none}
 .cropcard .seg button{padding-left:4px;padding-right:4px}
+.cropcard .seg{display:grid;grid-template-columns:repeat(5,minmax(44px,1fr));width:100%;box-sizing:border-box} /* v14b L5: 9 val i två rader */
+.cropcard .seg button{min-height:44px}
 .preview-card:has(.fbed) .stage-tools,.preview-card:has(.fbed) .badge{visibility:hidden} /* v14 p7/p8: inget annat ovanpå bilden medan man beskär */
 /* v14 p9: något mindre knappar inne i menyerna (Dela, Spara fil, Exportera m.m.) – tryckytan är fortfarande minst 44 px */
 .sheet .btn,.vw-bar .btn,.cdlg-btns .btn,.sheet .btnrow .btn{min-height:44px;padding:7px 14px;font-size:15px;border-radius:12px}
@@ -824,6 +826,8 @@ html.bs-l .fbedbar .btn,html.bs-m .fbedbar .btn{zoom:1}
 .sheet .chip{font-size:15px;padding:6px 13px}
 .sheet .seg button{font-size:15px}
 .sheet .btnrow{gap:8px;margin-top:8px}
+/* v14b L4: på smal stående telefon ligger temaknappen uppe till vänster – märket Före flyttas ned under den */
+@media (max-width:430px){ body:not(.fs) .badge{top:56px} }
 </style>
 </head>
 <body>
@@ -2174,21 +2178,41 @@ function jpegPreviewBase(lk) {
   return P.prev; // tills den avblockade förhandsbilden är klar
 }
 function buildJpegPreview(lk, key) {
+  /* v14b M1: samma band och samma nedskalning som förut (resultatet blir likadant), men varje band rensas i rutor om
+     512 px bredd (+16 px marginal, läst ur bandets orörda kopia) med en paus mellan rutorna – huvudtråden blockeras
+     aldrig länge (förut hela bilden i ett svep: ~14 s på 48 MP). */
   if (P.jpgPending !== key || !P.img) return;
-  var W = P.srcW, H = P.srcH, pw = P.prev.w, ph = P.prev.h, band = Math.max(64, Math.floor(4e6 / W / 8) * 8), m = 16;
+  var img = P.img, prev = P.prev, W = P.srcW, H = P.srcH, pw = prev.w, ph = prev.h, band = Math.max(64, Math.floor(4e6 / W / 8) * 8), m = 16, TW = 512;
   var out = document.createElement('canvas'); out.width = pw; out.height = ph; var ox = out.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high';
   var bc = document.createElement('canvas'), bx = bc.getContext('2d', { willReadFrequently: true });
-  for (var y = 0; y < H; y += band) {
-    var top = Math.max(0, y - m), bh = Math.min(band, H - y), hh = Math.min(H, y + bh + m) - top;
-    bc.width = W; bc.height = hh; bx.drawImage(P.img, 0, top, W, hh, 0, 0, W, hh);
-    var id = bx.getImageData(0, 0, W, hh); jpegFixRGBA(id.data, W, hh, lk, 0, top); bx.putImageData(id, 0, 0);
-    ox.drawImage(bc, 0, y - top, W, bh, 0, y * ph / H, pw, bh * ph / H);
+  var y = 0, top = 0, bh = 0, hh = 0, src = null, res = null, x = W, tb = null;
+  function alive() { return P.jpgPending === key && P.img === img && P.prev === prev; }
+  function bandStart() {
+    top = Math.max(0, y - m); bh = Math.min(band, H - y); hh = Math.min(H, y + bh + m) - top;
+    bc.width = W; bc.height = hh; bx.drawImage(img, 0, top, W, hh, 0, 0, W, hh);
+    src = bx.getImageData(0, 0, W, hh); res = bx.createImageData(W, hh); x = 0;
   }
-  bc.width = bc.height = 1;
-  var d = ox.getImageData(0, 0, pw, ph); out.width = out.height = 1;
-  if (P.jpgPending !== key) return;
-  P.jpgCache = { key: key, src: P.prev, out: { data: d, L: computeLum(d.data, pw * ph) } }; P.jpgPending = null; P.nrCache = null;
-  P.dirty = true; renderPhoto();
+  function tile() { // ruta [x, x+tw) med marginal, rensas ur src och skrivs (utan marginal) till res
+    var tw = Math.min(TW, W - x), l = Math.max(0, x - m), r = Math.min(W, x + tw + m), ww = r - l, n = ww * hh * 4;
+    if (!tb || tb.length !== n) tb = new Uint8ClampedArray(n);
+    var S = src.data, R = res.data, k, row;
+    for (row = 0; row < hh; row++) tb.set(S.subarray((row * W + l) * 4, (row * W + r) * 4), row * ww * 4);
+    if (jpegFixRGBA(tb, ww, hh, lk, l, top) === false) { for (row = 0; row < hh; row++) R.set(S.subarray((row * W + x) * 4, (row * W + x + tw) * 4), (row * W + x) * 4); }
+    else for (row = 0; row < hh; row++) { k = (row * ww + (x - l)) * 4; R.set(tb.subarray(k, k + tw * 4), (row * W + x) * 4); }
+    x += TW;
+  }
+  function bandEnd() { bx.putImageData(res, 0, 0); src = res = null; ox.drawImage(bc, 0, y - top, W, bh, 0, y * ph / H, pw, bh * ph / H); y += band; }
+  function step() {
+    if (!alive()) { bc.width = bc.height = 1; out.width = out.height = 1; src = res = tb = null; return; }
+    var t0 = performance.now();
+    do { if (x >= W) bandStart(); tile(); if (x >= W) bandEnd(); } while (y < H && performance.now() - t0 < 12);
+    if (y < H) { setTimeout(step, 0); return; }
+    bc.width = bc.height = 1; tb = null;
+    var d = ox.getImageData(0, 0, pw, ph); out.width = out.height = 1;
+    P.jpgCache = { key: key, src: prev, out: { data: d, L: computeLum(d.data, pw * ph) } }; P.jpgPending = null; P.nrCache = null;
+    P.dirty = true; P.lookSeq = (P.lookSeq || 0) + 1; requestPhotoRender(false); // v14b M1: ny källa – räkna om i bitar (startar om ett pågående jobb) i stället för synkront
+  }
+  step();
 }
 function previewSource(lk) {
   var base = jpegPreviewBase(lk), amt = nrAmount(lk); if (!amt) return base;
@@ -2198,13 +2222,52 @@ function previewSource(lk) {
   var out = { data: new ImageData(d, P.prev.w, P.prev.h), L: computeLum(d, P.prev.w * P.prev.h) };
   P.nrCache = { key: key, src: P.prev, out: out }; return out;
 }
+/* v14 p1/v14b L3: låst Före släpps vid varje ändring användaren gör (stil, reglage, text, vattenmärke, beskärning) */
+function releaseCmpLock() { if (!P.cmpSticky) return; P.cmpSticky = false; P.compare = false; var bd = $('#photoBadge'), cb = $('#photoCompare'); if (bd) bd.classList.add('hidden'); if (cb) { cb.classList.remove('on'); cb.setAttribute('aria-pressed', 'false'); }
+  if (typeof dskTile !== 'undefined' && dskTile) dskTile.style.visibility = ''; }
+function photoUserChange() { releaseCmpLock(); requestPhotoRender(false); }
 function requestPhotoRender(lookChanged) {
-  if (lookChanged) { P.dirty = true; if (P.cmpSticky) { P.cmpSticky = false; P.compare = false; var bd = $('#photoBadge'), cb = $('#photoCompare'); if (bd) bd.classList.add('hidden'); if (cb) { cb.classList.remove('on'); cb.setAttribute('aria-pressed', 'false'); } } } // v14 p1: en ändring visar alltid efter-bilden
+  if (lookChanged) { P.dirty = true; P.lookSeq = (P.lookSeq || 0) + 1; releaseCmpLock(); } // v14 p1: en ändring visar alltid efter-bilden
   if (P.pending) return; P.pending = true;
   var slow = lookChanged && (P.lastCost || 0) > 120; // v14 p4: tung bearbetning – visa notisen först, räkna sedan
   if (slow) photoWorkNote(true);
   requestAnimationFrame(function () { if (slow) setTimeout(go, 0); else go(); });
-  function go() { P.pending = false; renderPhoto(); photoWorkNote(false); }
+  function go() { P.pending = false;
+    if (P.dirty && !P.compare && P.prev && (P.lastCost || 0) > 40) { // v14b M1: tung omräkning i bitar – huvudtråden blockeras bara kort (~15 ms per bit)
+      if (!(PJ.running && PJ.seq === P.lookSeq && PJ.prev === P.prev)) photoJobStart();
+      if (PJ.running) { renderPhoto(true); photoWorkNote(true); return; } // text/märke m.m. ritas direkt ovanpå den förra bilden
+    }
+    renderPhoto(); photoWorkNote(false); }
+}
+/* v14b M1: förhandsbilden räknas om i band om några rader i taget (samma processRegion som annars – pixelidentiskt),
+   med en paus mellan banden så att reglage, pekgester och notisen uppdateras. En ny ändring avbryter och börjar om. */
+var PJ = { gen: 0, running: false, seq: -1, prev: null, buf: null };
+var pjChan = typeof MessageChannel !== 'undefined' ? new MessageChannel() : null, pjQ = [];
+if (pjChan) pjChan.port1.onmessage = function () { var f = pjQ.shift(); if (f) f(); };
+function pjYield(f) { if (pjChan) { pjQ.push(f); pjChan.port2.postMessage(0); } else setTimeout(f, 0); }
+function photoJobStart() {
+  var g = ++PJ.gen, prev = P.prev, lk = Object.assign({}, P.holdLook || P.look), seq = P.lookSeq, t0 = performance.now(), busyMs = 0;
+  PJ.running = true; PJ.seq = seq; PJ.prev = prev;
+  var w = prev.w, h = prev.h, n = P.out.data.length;
+  if (!PJ.buf || PJ.buf.length !== n) PJ.buf = new Uint8ClampedArray(n);
+  var dst = PJ.buf, sp, SB = null, sr = sharpRadius(w, h), y = 0, rows = 8;
+  function stale() { return g !== PJ.gen || P.prev !== prev; }
+  function prep() { if (stale()) return; var s = performance.now();
+    sp = previewSource(lk); if (lk.sharpness !== 0 && sr > 1) { SB = new Float32Array(sp.L); boxBlur(SB, w, h, sr); }
+    busyMs += performance.now() - s; pjYield(step); }
+  function step() {
+    if (stale()) return;
+    var s = performance.now(), y1 = Math.min(h, y + rows);
+    processRegion(sp.data.data, dst, sp.L, SB, prev.clar, w, h, lk, 0, 0, w, h, y, y1);
+    var dt = performance.now() - s; busyMs += dt; y = y1;
+    rows = Math.max(2, Math.min(256, Math.round(rows * 14 / Math.max(0.5, dt)))); // sikta på ~14 ms per bit
+    if (y < h) { pjYield(step); return; }
+    PJ.running = false; P.out.data.set(dst); P.lastCost = busyMs; P.lastWall = performance.now() - t0;
+    if (P.lookSeq === seq) P.dirty = false;
+    renderPhoto(true); if (P.dirty) requestPhotoRender(false); else photoWorkNote(false);
+    if (typeof fbCropUpdate === 'function' && photoTool === 'p-export') { clearTimeout(FB.t); FB.t = setTimeout(fbCropUpdate, 60); }
+  }
+  pjYield(prep);
 }
 /* v14 p4: reglagen följer fingret – när förhandsbilden är tung väntar bearbetningen tills fingret stannar eller släpper */
 var SLD = { drag: false };
@@ -2221,12 +2284,12 @@ function flushPhotoAdjust() { clearTimeout(P.adjT); if (!P.adjWait) return; P.ad
 function photoWorkNote(on) {
   var n = $('#photoWork'), c = $('#photoCard');
   if (!n && c) { n = el('div', { class: 'worknote hidden', id: 'photoWork', role: 'status', 'aria-live': 'polite', text: 'Bearbetar…' }); c.append(n); }
-  if (n) n.classList.toggle('hidden', !on || (!P.adjWait && !P.pending));
+  if (n) n.classList.toggle('hidden', !on || (!P.adjWait && !P.pending && !PJ.running));
 }
-function renderPhoto() {
+function renderPhoto(noCompute) {
   if (!P.prev) return;
   if (P.compare) { photoCtx.putImageData(P.prev.data, 0, 0); return; }
-  if (P.dirty) { var t0 = performance.now(), lk = P.holdLook || P.look, sp = previewSource(lk); processPixels(sp.data.data, P.out.data, sp.L, P.prev.clar, P.prev.w, P.prev.h, lk); P.dirty = false; P.lastCost = performance.now() - t0; }
+  if (P.dirty && !noCompute) { PJ.gen++; PJ.running = false; var t0 = performance.now(), lk = P.holdLook || P.look, sp = previewSource(lk); processPixels(sp.data.data, P.out.data, sp.L, P.prev.clar, P.prev.w, P.prev.h, lk); P.dirty = false; P.lastCost = performance.now() - t0; photoWorkNote(false); } // ett avbrutet jobb får inte lämna notisen kvar
   photoCtx.putImageData(P.out, 0, 0);
   if (P.holdLook && P.holdBase) drawHoldSplit();
   drawTitle(photoCtx, P.prev.w, P.prev.h, P.text);
@@ -2365,7 +2428,9 @@ function setPhotoCompare(on) {
   if (!on) P.cmpSticky = false;
   P.compare = on; var bd = $('#photoBadge'); bd.textContent = 'Före'; bd.classList.toggle('hidden', !on);
   var cb = $('#photoCompare'); cb.classList.toggle('on', on); cb.setAttribute('aria-pressed', on ? 'true' : 'false');
-  renderPhoto();
+  if (typeof dskTile !== 'undefined' && dskTile) dskTile.style.visibility = on ? 'hidden' : ''; // v14b M3: den högupplösta efter-plattan får inte ligga över före-bilden
+  if (!on && P.zoom && typeof dskTileSchedule === 'function') dskTileSchedule();
+  if (!on && P.dirty) requestPhotoRender(false); else renderPhoto(); // v14b M1: väntande omräkning går via jobbet, inte synkront
 }
 (function () {
   var b = $('#photoCompare'), t0 = 0, skipUp = false;
@@ -2594,10 +2659,13 @@ var seekQ = { busy: false, next: null };
 function seekLatest(t) {
   if (seekQ.busy) { seekQ.next = t; return; }
   seekQ.busy = true;
-  seekVideo(t).then(function () {
+  var after = function () { // v14b H1: kön släpps alltid, även om sökningen kastar
     seekQ.busy = false;
     if (seekQ.next !== null) { var n = seekQ.next; seekQ.next = null; seekLatest(n); }
-  });
+  };
+  var pr;
+  try { pr = seekVideo(t); } catch (e) { console.warn(e); after(); return; }
+  Promise.resolve(pr).then(after, function (e) { console.warn(e); after(); });
 }
 function loadVideo(file) {
   if (!file) return;
@@ -3021,7 +3089,7 @@ window.applyFavorite = applyFavorite; window.favLook = favLook;
   upd();
 })();
 /* --- Foto: Text --- */
-buildTextPanel(pane('p-text'), P.text, function () { requestPhotoRender(false); });
+buildTextPanel(pane('p-text'), P.text, function () { photoUserChange(); });
 /* --- Foto: Exportera --- */
 (function () {
   var p = pane('p-export');
@@ -3931,7 +3999,7 @@ window.addEventListener('pagehide', sessionFlush);
 
 function applyTextSettings(t) {
   if (!t) return; normFont(t); Object.keys(P.text).forEach(function (k) { if (k in t) P.text[k] = t[k]; });
-  var p = panes['p-text']; p.innerHTML = ''; buildTextPanel(p, P.text, function () { requestPhotoRender(false); });
+  var p = panes['p-text']; p.innerHTML = ''; buildTextPanel(p, P.text, function () { photoUserChange(); });
   var ta = p.querySelector('textarea'); if (ta) ta.value = P.text.text || '';
 }
 function resumeSession(s) {
@@ -4270,7 +4338,7 @@ var TILE_MAX = DSK.fine ? 12e6 : 3e6;
 function dskGestureActive() { return Date.now() - (P.pinchAt || 0) < 350 || (DSK.anim && DSK.anim.busy && DSK.anim.busy()) || !!P.gesture; }
 function dskTileSchedule() { clearTimeout(dskTileT); dskTileT = setTimeout(dskTileRender, DSK.fine ? 180 : 320); }
 function dskTileRender() {
-  if (!P.zoom || !P.img || !P.prev || P.holdLook) return;
+  if (!P.zoom || !P.img || !P.prev || P.holdLook || P.compare) return; // v14b M3: ingen efter-platta medan Före visas
   if (dskGestureActive()) { dskTileSchedule(); return; }
   var c = photoCanvas, cr = c.getBoundingClientRect(), W = P.srcW, H = P.srcH, k = cr.width / W; // css-px per originalpixel
   if (!(k > 0)) return;
@@ -4301,6 +4369,7 @@ function dskTileRender() {
     tc.style.left = (c.offsetLeft + sx * k) + 'px'; tc.style.top = (c.offsetTop + sy * k) + 'px';
     tc.style.width = (sw * k) + 'px'; tc.style.height = (sh * k) + 'px';
     tc._key = key; tc._ms = Math.round(performance.now() - t0); tc._src = [sx, sy, sw, sh]; tc._f = f; tc._cssW = cr.width;
+    tc.style.visibility = P.compare ? 'hidden' : '';
     if (!dskTile) { c.parentNode.append(tc); dskTile = tc; }
   }, 0);
 }
@@ -4377,7 +4446,7 @@ function openHelp() {
   function shut() { lay.remove(); document.removeEventListener('keydown', onKey, true); }
   function onKey(e) { if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); e.stopPropagation(); shut(); } }
   lay.append(el('div', { class: 'cdlg-box helpbox' }, [el('h3', { text: 'Kortkommandon' }), tb, el('p', { class: 'info', text: 'Batchredigera: ← → bläddrar i den stora förhandsvisningen. Exportera alla (N) laddar ner en ZIP med alla valda bilder i full upplösning.' }),
-      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v14: Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:3, 16:9) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
+      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v14: Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
   lay.addEventListener('click', function (e) { if (e.target === lay) shut(); });
   document.addEventListener('keydown', onKey, true); document.body.append(lay); var fb = lay.querySelector('.btn.primary'); if (fb) fb.focus();
 }
@@ -4924,7 +4993,7 @@ function drawWatermark(ctx, w, h) {
   ctx.save(); ctx.globalAlpha = WM.opacity / 100; ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = dh * 0.06; ctx.drawImage(wmImg, x, y, dw, dh); ctx.restore();
   return { x: x, y: y, w: dw, h: dh };
 }
-function wmRefresh() { try { if (P.prev) requestPhotoRender(false); if (V.ready) requestVideoRender(); } catch (e) {} }
+function wmRefresh() { try { if (P.prev) photoUserChange(); if (V.ready) requestVideoRender(); } catch (e) {} }
 function buildWatermarkCard(paneId, sfx) {
   var p = panes[paneId]; if (!p) return;
   var cb = el('input', { type: 'checkbox', id: 'wmOn' + sfx, 'aria-label': 'Vattenmärke på' }); cb.checked = WM.on;
@@ -4936,7 +5005,7 @@ function buildWatermarkCard(paneId, sfx) {
   [['fsg', 'Freestyle Swede (grå)'], ['fs', 'Freestyle Swede (färg)'], ['custom', 'Egen logotyp']].forEach(function (l) {
     logos.append(el('button', { type: 'button', class: 'chip', 'data-l': l[0], text: l[1], onclick: function () {
       if (l[0] === 'custom') { var has = false; try { has = !!localStorage.getItem(WM_LOGO_KEY); } catch (e) {} if (!has) { $('#wmLogoInput').click(); return; } }
-      WM.logo = l[0]; wmSave(); wmImg = null; wmLoad(); syncAll(); } }));
+      WM.logo = l[0]; wmSave(); wmImg = null; wmLoad(); syncAll(); if (P.prev) releaseCmpLock(); } }));
   });
   var size = makeSlider({ label: 'Storlek', min: 6, max: 40, def: 10, value: WM.size, noMod: true, fmt: function (v) { return Math.round(v) + ' %'; }, onInput: function (v) { WM.size = v; wmSave(); wmRefresh(); } });
   var op = makeSlider({ label: 'Synlighet', min: 15, max: 100, def: 80, value: WM.opacity, noMod: true, fmt: function (v) { return Math.round(v) + ' %'; }, onInput: function (v) { WM.opacity = v; wmSave(); wmRefresh(); } });
@@ -5171,7 +5240,7 @@ function tlSeek(pos) { TL.pos = Math.max(0, Math.min(V.end, pos)); tlSync(true);
   playVideo = function () { return TL.on ? tlPlay() : _play(); };
   pauseVideo = function () { if (TL.on) tlPause(); else _pause(); };
   renderVideo = function () { if (TL.on) tlRender(); else _render(); };
-  seekVideo = function (t) { if (TL.on) tlSeek(t); else _seek(t); };
+  seekVideo = function (t) { return TL.on ? Promise.resolve(tlSeek(t)) : _seek(t); }; // v14b H1: alltid ett promise (seekLatest väntar på det)
   seekLatest = function (t) { if (TL.on) tlSeek(t); else _seekL(t); };
   updateVTime = function () {
     if (!TL.on) return _upd();
@@ -5350,10 +5419,11 @@ videoEl.addEventListener('timeupdate', function () { if (!TL.on) tlDrawPlayhead(
 /* --- p8: fri beskärning (utöver Facebook) – gäller Exportera bild och Facebook med Original proportion.
    Hela bilden bearbetas som förut (samma utseende), bara rutan sparas. Vattenmärket hamnar i beskärningens hörn. --- */
 var CROP = { c: {} }; // c[bildnyckel] = { mode, x, y, w, h } i originalpixlar (sessionen)
-var CROP_OPTS = [['none', 'Ingen'], ['free', 'Fri'], ['1:1', '1:1'], ['4:3', '4:3'], ['16:9', '16:9']];
+// v14b L5: alla proportioner går att välja oavsett bildens orientering (stående och liggande)
+var CROP_OPTS = [['none', 'Ingen'], ['free', 'Fri'], ['1:1', '1:1'], ['4:5', '4:5'], ['3:4', '3:4'], ['9:16', '9:16'], ['3:2', '3:2'], ['4:3', '4:3'], ['16:9', '16:9']];
 function cropCur() { return P.img ? CROP.c[fbKey()] : null; }
 function cropRect() { var c = cropCur(); if (!c || c.mode === 'none' || !c.w) return null; if (c.x === 0 && c.y === 0 && c.w === P.srcW && c.h === P.srcH) return null; return { x: c.x, y: c.y, w: c.w, h: c.h }; }
-function cropAr(mode) { if (mode === 'free' || mode === 'none') return 0; var p = mode.split(':'), a = +p[0] / +p[1]; return P.srcW >= P.srcH ? a : 1 / a; } // följer bildens orientering
+function cropAr(mode) { if (mode === 'free' || mode === 'none') return 0; var p = mode.split(':'), a = +p[0] / +p[1]; return a; } // v14b L5: exakt bredd:höjd som knappen säger
 var cropBox = el('div', { class: 'fbcrop freecrop hidden', id: 'cropBox', 'aria-hidden': 'true' });
 $('#photoCard').append(cropBox);
 function cropUpdate() {
@@ -5371,11 +5441,11 @@ function cropUpdate() {
 function cropSetMode(mode) {
   if (!P.img) { toast('Välj en bild först.'); return; }
   var key = fbKey(), W = P.srcW, H = P.srcH, old = CROP.c[key];
-  if (mode === 'none') { CROP.c[key] = { mode: 'none' }; cropUpdate(); requestPhotoRender(false); return; }
+  if (mode === 'none') { CROP.c[key] = { mode: 'none' }; cropUpdate(); photoUserChange(); return; }
   var ar = cropAr(mode), r;
   if (!ar) r = old && old.w ? { x: old.x, y: old.y, w: old.w, h: old.h } : { x: Math.round(W * 0.08), y: Math.round(H * 0.08), w: Math.round(W * 0.84), h: Math.round(H * 0.84) };
   else r = fbCenter(W, H, ar);
-  CROP.c[key] = { mode: mode, x: r.x, y: r.y, w: r.w, h: r.h }; cropUpdate(); requestPhotoRender(false); cropOpenEditor();
+  CROP.c[key] = { mode: mode, x: r.x, y: r.y, w: r.w, h: r.h }; cropUpdate(); photoUserChange(); cropOpenEditor();
 }
 /* redigerare: dra i rutan för att flytta, hörn och kanter för storlek (fri eller fast proportion), nyp för storlek */
 function cropOpenEditor() {
@@ -5431,7 +5501,7 @@ function cropOpenEditor() {
   var onRs = function () { draw(); }; window.addEventListener('resize', onRs);
   function finish(keep) {
     if (keep) { clamp(); var k = fbKey(), m = (CROP.c[k] || {}).mode || 'free'; CROP.c[k] = { mode: m, x: cur.x, y: cur.y, w: cur.w, h: cur.h }; }
-    document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onRs); ed.remove(); CROP.editor = null; cropUpdate(); requestPhotoRender(false);
+    document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onRs); ed.remove(); CROP.editor = null; cropUpdate(); photoUserChange();
   }
   CROP.editor = { cur: function () { return cur; }, set: function (r) { cur = Object.assign({}, r); draw(); }, done: function () { finish(true); } };
   draw();
