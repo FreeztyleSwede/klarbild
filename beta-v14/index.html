@@ -892,6 +892,24 @@ html.bs-s .fbedbar .btn{font-size:13px;white-space:nowrap}
 @media (max-width:374px) and (orientation:portrait){ html.bs-l body:not(.fs) .stage-tools .pill{zoom:1} }
 @media (orientation:landscape) and (max-height:500px) and (max-width:700px){ html.bs-l body:not(.fs) .stage-tools .pill{zoom:1} body:not(.fs) .stage-tools{left:6px;gap:4px} body:not(.fs) .stage-tools .pill{padding:4px 9px} }
 @media (max-width:374px) and (orientation:portrait),(orientation:landscape) and (max-height:540px){ html.bs-l body.fs:not(.fine) .stage-tools{top:calc(74px + env(safe-area-inset-top))} } html.bs-l body.fs:not(.fine) .badge{top:calc(74px + env(safe-area-inset-top))} /* Stor: knapparna uppe är högre */
+/* v14d M-L1: Liten behåller det mindre utseendet men varje kontroll får en osynlig tryckyta på minst 44×44 px (2 px utåt; grannarna har ≥4 px mellanrum så ytorna överlappar inte) */
+html.bs-s :is(button,.btn,.chip,.pill,.fontchip,.sw):not(#themeBtn):not(#fsBackBtn):not(.fbh){position:relative}
+html.bs-s :is(button,.btn,.chip,.pill,.fontchip,.sw):not(#themeBtn)::after{content:"";position:absolute;left:calc(0px - var(--bw,0px));right:calc(0px - var(--bw,0px));top:calc(-2px - var(--bw,0px));bottom:calc(-2px - var(--bw,0px))}
+html.bs-s :is(.pill,.btn,.chip,.fontchip,.fbopt,.noisechip,.autooff,.dskpill){--bw:1px}html.bs-s :is(.sw,.preset){--bw:2px}html.bs-s .btn.primary{--bw:0px}
+html.bs-s .iconbtn:not(#themeBtn)::after{left:-2px;right:-2px}
+html.bs-s body:not(.kb0) #themeBtn,html.bs-s body.fs #themeBtn{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;border:2px solid transparent!important;background-clip:padding-box;border-radius:13px} /* syns som 40 px, trycks som 44 px */
+html.bs-s .tools button{min-height:46px}
+@media (orientation:landscape) and (max-height:500px){ html.bs-s .tools button{min-height:44px} }
+/* v14d M-L1: på liggande telefon täckte huvudradens nedre kant (padding) flikarna – bara knapparna i huvudraden tar emot tryck */
+@media (orientation:landscape) and (max-height:500px){ body:not(.fs) header.top{pointer-events:none} body:not(.fs) header.top>*{pointer-events:auto} }
+html.bs-s .cropcard .seg{row-gap:4px} /* v14d: tryckytorna i två rader får inte överlappa */
+.empty .hometip{padding-right:0}
+.hometip-x{appearance:none;border:0;background:none;color:var(--muted);font-size:20px;line-height:1;width:44px;height:44px;min-height:44px!important;min-width:44px!important;margin:-8px -2px -8px -6px;padding:0;flex:none;cursor:pointer;display:grid;place-items:center;border-radius:999px} /* v14d L-T1: stäng tipset (44 px tryckyta, pillret växer inte) */
+.hometip-x::after{display:none!important}
+@media (max-height:520px){ .empty .hometip{margin-top:12px} }
+/* v14d: hjälpen (?) gick inte att rulla – rutan var högre än skärmen, centrerad i ett fast lager utan egen rullning (body är position:fixed/overflow:hidden), så topp och botten klipptes bort */
+#helpSheet{align-items:flex-start;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+#helpSheet .helpbox{margin:auto;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;box-sizing:border-box;-webkit-user-select:text;user-select:text}
 </style>
 </head>
 <body>
@@ -2995,13 +3013,21 @@ document.addEventListener('visibilitychange', function () {
    PANELER OCH NAVIGERING
    ========================================================================= */
 var sheet = $('#sheet'), panes = {}, photoTool = null, videoTool = null, mode = 'photo';
-/* v14c p4: tipset om hemskärmen visas på startsidan (inte längre i Exportera) – döljs när appen redan körs från hemskärmen */
-var HOME_TIP = 'Lägg till på hemskärmen via Safari för att använda som en app.';
+/* v14c p4 + v14d L-T1: tipset om hemskärmen visas på startsidan – bara i Safari på iPhone/iPad som inte redan körs från hemskärmen, och kan stängas (minns valet) */
+var HOME_TIP = 'Lägg till på hemskärmen via Safari för att använda som en app.', HOME_TIP_KEY = 'klarbild.hemtips.v1';
+function homeTipWanted() {
+  var ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); // iPadOS visar sig som Mac
+  var safari = /Safari\//.test(ua) && /Version\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|GSA\/|YaBrowser|DuckDuckGo|Brave/.test(ua);
+  var standalone = false; try { standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches; } catch (e) {}
+  var off = false; try { off = localStorage.getItem(HOME_TIP_KEY) === 'av'; } catch (e) {}
+  return ios && safari && !standalone && !off;
+}
 (function () {
-  var standalone = false; try { standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; } catch (e) {}
-  if (standalone) return;
+  if (!homeTipWanted()) return;
+  function close() { try { localStorage.setItem(HOME_TIP_KEY, 'av'); } catch (e) {} document.querySelectorAll('.hometip').forEach(function (t) { t.remove(); }); }
   ['#photoEmpty', '#videoEmpty'].forEach(function (s) { var e = $(s); if (!e) return;
-    e.append(el('p', { class: 'hometip', role: 'note' }, [el('span', { class: 'hometip-i', 'aria-hidden': 'true', text: '💡' }), el('span', { text: HOME_TIP })])); });
+    e.append(el('p', { class: 'hometip', role: 'note' }, [el('span', { class: 'hometip-i', 'aria-hidden': 'true', text: '💡' }), el('span', { text: HOME_TIP }),
+      el('button', { type: 'button', class: 'hometip-x', 'aria-label': 'Stäng tipset', title: 'Stäng tipset', text: '×', onclick: function (ev) { ev.stopPropagation(); close(); } })])); });
 })();
 function pane(id) { var p = el('div', { class: 'pane hidden', id: id }); sheet.append(p); panes[id] = p; return p; }
 var TOOLS = {
@@ -3755,13 +3781,15 @@ function thumbRetry(r, it, manual) {
 var BATCH_MAX = 20;
 function galPut(rec) { return galEncode(rec).then(function (o) { return galTx('readwrite', function (st) { st.put(o); }); }); }
 var VER_MAX = 10; // tidigare versioner per bild (originalet räknas och behålls alltid)
+/* v14d L-W1: byt filändelse efter ny typ (gammal.webp → gammal.jpg) */
+function galExtName(n, mime) { var ext = mime === 'image/png' ? '.png' : '.jpg'; n = n || 'bild'; return /\.[a-z0-9]{2,5}$/i.test(n) ? n.replace(/\.[a-z0-9]{2,5}$/i, ext) : n + ext; }
 function verPush(r) {
   r.versions = r.versions || [];
-  r.versions.push({ blob: r.blob, thumb: r.thumb, w: r.w, h: r.h, ts: r.edited || r.ts, label: r.curLabel || (r.versions.length ? 'Version' : 'Original'), orig: !r.versions.length, edit: r.edit || null });
+  r.versions.push({ blob: r.blob, thumb: r.thumb, w: r.w, h: r.h, ts: r.edited || r.ts, label: r.curLabel || (r.versions.length ? 'Version' : 'Original'), orig: !r.versions.length, edit: r.edit || null, type: r.type, name: r.name });
   while (r.versions.length > VER_MAX) r.versions.splice(1, 1); // äldsta mellanversion tas bort
 }
 function setCurrent(r, v, label) {
-  r.blob = v.blob; r.size = v.blob.size; r.w = v.w; r.h = v.h; r.thumb = v.thumb; r.edited = Date.now(); r.curLabel = label || v.label; r.edit = v.edit || null;
+  r.blob = v.blob; r.size = v.blob.size; if (v.type) r.type = v.type; if (v.name) r.name = v.name; /* v14d L-W1: typ och namn följer versionen */ r.w = v.w; r.h = v.h; r.thumb = v.thumb; r.edited = Date.now(); r.curLabel = label || v.label; r.edit = v.edit || null;
   return (r.thumb ? Promise.resolve() : makeThumb(r.blob).then(function (t) { r.thumb = t.thumb; r.w = t.w; r.h = t.h; }));
 }
 function galUndo(id) { // tillbaka till närmast föregående version (den aktuella kastas)
@@ -4006,7 +4034,7 @@ function runBatch(ids, look, text, batchLabel, auto) {
         var lk = JSON.parse(JSON.stringify(look)); if (an.al) lk.autoLevels = an.al; lk.noise = an.noise; lk.jpeg = an.jpeg; if (lk.hdr && lk.adaptPer && an.stats) crystalAdaptLook(lk, null, an.stats); if (!lk.nrUser) crystalClean(lk); r._lk = lk; // brus per bild (v14: + Kristallklar per bild)
         return renderNative(r.blob, lk, text, mime, 92, function (f) { busyProgress((i + f) / ids.length); }, { noWM: true }) /* N1: Applicera bränner aldrig in vattenmärket i Sparade – det läggs bara på vid export */.then(function (res) { return res.blob; }); }).then(function (blob) {
         if (cancelled && false) return;
-        verPush(r); r.edit = { look: r._lk, text: textMeta(text) }; delete r._lk; r.blob = blob; r.size = blob.size; r.edited = Date.now(); r.curLabel = batchLabel;
+        verPush(r); r.edit = { look: r._lk, text: textMeta(text) }; delete r._lk; r.blob = blob; r.size = blob.size; r.edited = Date.now(); r.curLabel = batchLabel; if (/webp/i.test(r.type || '') || /\.webp$/i.test(r.name || '')) { r.type = mime; r.name = galExtName(r.name, mime); } /* v14d L-W1: gammal WebP får .jpg och image/jpeg */
         return makeThumb(blob).then(function (t) { r.thumb = t.thumb; r.w = t.w; r.h = t.h; return galPut(r); }).then(function () { done.push({ id: r.id, name: r.name }); });
       });
     }).catch(function (e) { console.warn('batch', e); failed++; }).then(function () { i++; busyProgress(i / ids.length); setTimeout(next, 0); });
@@ -4545,7 +4573,7 @@ function openHelp() {
   function shut() { lay.remove(); document.removeEventListener('keydown', onKey, true); }
   function onKey(e) { if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); e.stopPropagation(); shut(); } }
   lay.append(el('div', { class: 'cdlg-box helpbox' }, [el('h3', { text: 'Kortkommandon' }), tb, el('p', { class: 'info', text: 'Batchredigera: ← → bläddrar i den stora förhandsvisningen. Exportera alla (N) laddar ner en ZIP med alla valda bilder i full upplösning.' }),
-      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v14: Exportformat JPEG eller PNG (WebP borttaget). Rotera 90° och Räta upp (±45°, automatisk beskärning) under Exportera → Beskärning. Tips om hemskärmen på startsidan. Knappstorlek Liten är nu ännu mindre (40 px tryckyta). Större bildyta i alla lägen – knapparna ligger ovanpå bilden. Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
+      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v14: Exportformat JPEG eller PNG (WebP borttaget). Rotera 90° och Räta upp (±45°, automatisk beskärning) under Exportera → Beskärning. Tips om hemskärmen på startsidan. Knappstorlek Liten ser ännu mindre ut (tryckytan är fortfarande 44 px). Större bildyta i alla lägen – knapparna ligger ovanpå bilden. Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
   lay.addEventListener('click', function (e) { if (e.target === lay) shut(); });
   document.addEventListener('keydown', onKey, true); document.body.append(lay); var fb = lay.querySelector('.btn.primary'); if (fb) fb.focus();
 }
