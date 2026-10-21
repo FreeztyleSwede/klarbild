@@ -59,6 +59,9 @@ header.top{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
 .preview-card.zoomed .canvas-wrap canvas{margin:auto}
 .preview-card.zoomed .canvas-wrap canvas{border-radius:0}
 #videoEl{position:absolute;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
+#videoEl.vf-direct{position:absolute;opacity:1;z-index:0;object-fit:fill;margin:0;padding:0}
+#videoCanvas.vf-over{position:relative;z-index:1;background:transparent!important}
+.vfnote{position:absolute;left:12px;right:12px;bottom:12px;z-index:3;background:rgba(0,0,0,.78);color:#fff;font-size:14px;line-height:1.35;padding:10px 12px;border-radius:10px;pointer-events:none} /* v15b */
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;padding:24px;gap:6px;overflow:auto}
 .empty>:first-child{margin-top:auto}.empty>:last-child{margin-bottom:auto}
 .empty h2{margin:8px 0 0;font-size:24px;letter-spacing:-.3px}
@@ -6157,7 +6160,7 @@ function wcMotion(P, C, w, h, gx, gy, hp) { // innehållets förflyttning från 
   hp = hp || wcHalf(P, w, h); var hc = wcHalf(C, w, h), R = 8, best = 1e9, ox = Math.round((gx || 0) / 2), oy = Math.round((gy || 0) / 2), bx = ox, by = oy;
   var m = R + 1 + Math.max(Math.abs(ox), Math.abs(oy)); if (2 * m + 8 > hp.h) { ox = oy = 0; bx = by = 0; m = R + 1; }
   for (var dy = oy - R; dy <= oy + R; dy++) for (var dx = ox - R; dx <= ox + R; dx++) { var s = wcSad(hp.g, hc.g, hp.w, m, m, hp.w - 2 * m, hp.h - 2 * m, dx, dy, 2); if (s < best) { best = s; bx = dx; by = dy; } }
-  if (best > 45) return { x: 0, y: 0, r: 0, s: 0, cut: true }; // scenbyte/oskärpa: ingen korrektion över gränsen
+  if (best > 45) return { x: 0, y: 0, r: 0, s: 0, cut: true, sad: best }; // scenbyte/oskärpa: ingen korrektion över gränsen
   var bw = Math.floor(w / 5), bh = Math.floor(h / 5), vs = [], r = 3;
   [0.2, 0.5, 0.8].forEach(function (fy) { [0.2, 0.5, 0.8].forEach(function (fx) {
     var x0 = Math.round(w * fx - bw / 2), y0 = Math.round(h * fy - bh / 2), cx = 2 * bx, cy = 2 * by;
@@ -6176,6 +6179,10 @@ function wcMotion(P, C, w, h, gx, gy, hp) { // innehållets förflyttning från 
       var keep = vs.filter(function (p, i) { return er[i] <= Math.max(0.75, 3 * med); }); if (keep.length >= 3 && keep.length < vs.length) f = wcFitSim(keep, w, h) || f;
       res = { x: f.tx / w, y: f.ty / h, r: Math.max(-0.05, Math.min(0.05, f.b)), s: Math.max(-0.05, Math.min(0.05, f.a)) }; }
   } else if (vs.length) { var us = vs.map(function (p) { return p.u; }).sort(), vv = vs.map(function (p) { return p.v; }).sort(); res.x = us[us.length >> 1] / w; res.y = vv[vv.length >> 1] / h; }
+  // v15b: en finpassning som avviker från blocksökningen är en felpassning (upprepade mönster, brus) – inte ett scenbyte. Tidigare gav den
+  // 'cut' → stabiliseringen delades i segment och hoppade (ryck i exporten) och Förbättra film blandade in föregående bild utan förskjutning.
+  var cx0 = 2 * bx / w, cy0 = 2 * by / h;
+  if (Math.abs(res.x - cx0) > 3 / w * 2 || Math.abs(res.y - cy0) > 3 / h * 2) res = { x: cx0, y: cy0, r: 0, s: 0 };
   if (Math.abs(res.x) > 0.2 || Math.abs(res.y) > 0.2) return { x: 0, y: 0, r: 0, s: 0, cut: true };
   return res;
 }
@@ -6205,6 +6212,7 @@ function wcStabPlan(c, fps, mode) {
   var ls = wcGauss(Array.prototype.slice.call(mn), fps / 6, false), clamped = 0, out = [];
   for (i = 0; i < n; i++) { var l = Math.min(ls[i], 1); if (!fit(D[i], l)) { var lo2 = 0, hi2 = l; for (k = 0; k < 14; k++) { var m2 = (lo2 + hi2) / 2; if (fit(D[i], m2)) lo2 = m2; else hi2 = m2; } l = lo2; }
     if (l < 0.999) clamped++; out.push(wcStabMat({ x: D[i].x * l, y: D[i].y * l, r: D[i].r * l, s: D[i].s * l }, Z, W, H).m); }
+  if (window.WCDBG) WCDBG.push({ mot: c.mot, lam: Array.prototype.slice.call(ls) });
   c.stabM = out; return { frames: n, begr: clamped, zoom: +Z.toFixed(3), cuts: seg.length - 2 };
 }
 async function wcAnalyse(plan, fps, X) {
@@ -6213,7 +6221,7 @@ async function wcAnalyse(plan, fps, X) {
   for (var ci = 0; ci < plan.clips.length; ci++) {
     var c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? 256 : Math.round(256 * asp) & ~1, ah = asp >= 1 ? Math.round(256 / asp) & ~1 : 256;
     var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d', { willReadFrequently: true });
-    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 2 }), prev = null, cur = null; c.mot = []; c.lum = [];
+    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 2 }), prev = null, cur = null, last = null; c.mot = []; c.lum = [];
     for await (var wc of sink.canvasesAtTimestamps(c.times)) {
       if (X.cancelled) return;
       if (document.hidden) await wcWaitVisible(X);
@@ -6221,12 +6229,14 @@ async function wcAnalyse(plan, fps, X) {
       if (wc) { cx.drawImage(wc.canvas, 0, 0, aw, ah); var g = wcGray(cx.getImageData(0, 0, aw, ah).data, aw * ah), L = 0;
         for (var i = 0; i < g.length; i += 3) { var y = g[i] / 255; L += y * y * Math.sqrt(y) ; } c.lum.push(Math.log2(Math.max(1e-4, L / Math.ceil(g.length / 3))));
         // jämförs mot en referensbild (byts var 10:e bild) i stället för mot föregående – mätfelen summeras då inte bild för bild
-        if (!prev) { c.mot.push({ x: 0, y: 0, r: 0, s: 0 }); prev = { g: g, h: wcHalf(g, aw, ah), k: 0, p: { x: 0, y: 0, r: 0, s: 0 } }; cur = { x: 0, y: 0, r: 0, s: 0 }; }
+        if (!prev) { c.mot.push({ x: 0, y: 0, r: 0, s: 0 }); last = { g: g, k: 1, p: { x: 0, y: 0, r: 0, s: 0 }, v: { x: 0, y: 0 } }; prev = { g: g, h: wcHalf(g, aw, ah), k: 0, p: { x: 0, y: 0, r: 0, s: 0 } }; cur = { x: 0, y: 0, r: 0, s: 0 }; }
         else { var mm = wcMotion(prev.g, g, aw, ah, (cur.x - prev.p.x) * aw, (cur.y - prev.p.y) * ah, prev.h), np;
-          if (mm.cut) { c.mot.push(mm); np = cur; }
+          if (mm.cut && last && last.k === c.mot.length) { var m2 = wcMotion(last.g, g, aw, ah, last.v.x * aw, last.v.y * ah); // v15b: försök mot föregående bild innan scenbyte
+            if (!m2.cut) { np = { x: last.p.x + m2.x, y: last.p.y + m2.y, r: last.p.r + m2.r, s: last.p.s + m2.s }; c.mot.push({ x: np.x - cur.x, y: np.y - cur.y, r: np.r - cur.r, s: np.s - cur.s }); cur = np; prev = { g: g, h: wcHalf(g, aw, ah), k: c.mot.length - 1, p: cur }; last = { g: g, k: c.mot.length, p: cur, v: m2 }; mm = null; } }
+          if (!mm) {} else if (mm.cut) { c.mot.push(mm); np = cur; }
           else { np = { x: prev.p.x + mm.x, y: prev.p.y + mm.y, r: prev.p.r + mm.r, s: prev.p.s + mm.s }; c.mot.push({ x: np.x - cur.x, y: np.y - cur.y, r: np.r - cur.r, s: np.s - cur.s }); }
-          cur = np; if (mm.cut || c.mot.length - 1 - prev.k >= 10) prev = { g: g, h: wcHalf(g, aw, ah), k: c.mot.length - 1, p: cur }; } }
-      else { c.mot.push({ x: 0, y: 0, r: 0, s: 0, cut: true }); c.lum.push(c.lum.length ? c.lum[c.lum.length - 1] : -2); }
+          if (mm) { last = { g: g, k: c.mot.length, p: np, v: mm.cut ? { x: 0, y: 0 } : c.mot[c.mot.length - 1] }; cur = np; } if (mm && (mm.cut || c.mot.length - 1 - prev.k >= 10)) prev = { g: g, h: wcHalf(g, aw, ah), k: c.mot.length - 1, p: cur }; } }
+      else { c.mot.push({ x: 0, y: 0, r: 0, s: 0, miss: true }); /* v15b: saknad bild är inte ett scenbyte (bryter inte stabiliseringen) */ c.lum.push(c.lum.length ? c.lum[c.lum.length - 1] : -2); }
       work += performance.now() - a; done++;
       if (done % 10 === 0) wcProgress(X, X.pre * done / tot, 'Analyserar rörelser');
     }
@@ -6308,7 +6318,7 @@ function wcEnhFx(c, k, fr) {
   if (!WCO.enh || !wcEnhInit()) return;
   var s = wcEnhState(c); if (!s) return;
   V.glPre = function (src, w, h) {
-    var gl = V.gl, u = ENH.u, first = s.last !== k - 1 || !s.prevOk, m = c.mot && c.mot[k];
+    var gl = V.gl, u = ENH.u, m = c.mot && c.mot[k], first = s.last !== k - 1 || !s.prevOk || !m || !!m.cut || !!m.miss; // v15b: ingen tidsblandning över scenbyte/saknad bild
     gl.useProgram(ENH.pr); gl.bindFramebuffer(gl.FRAMEBUFFER, s.B.f); gl.viewport(0, 0, w, h);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, s.cur); try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, src); } catch (e) { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.useProgram(V.prog); return false; }
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, s.A.t); gl.activeTexture(gl.TEXTURE0);
@@ -6603,6 +6613,81 @@ function kbwPrecomputeAL() { var p = P.prev; if (!p || p._alP || !kbwOk()) retur
         if (P.img !== img) return; var cv = presetThumbs[id]; cv.width = s.w; cv.height = s.h; cv.getContext('2d').putImageData(new ImageData(d, s.w, s.h), 0, 0); });
     });
   };
+})();
+
+/* v15b: robust filmförhandsvisning. iPhone-filmer (HEVC 10-bit HDR/HLG, Dolby Vision) kan avkodas av <video> men ge svart eller
+   undantag när bildrutan ritas till WebGL/canvas – då hördes bara ljudet. Kedja: WebGL → 2D-canvas → videon visas direkt (med text/
+   vattenmärke ovanpå) → tydligt meddelande om bilden inte går att avkoda alls. */
+var VF = { mode: 'gl', glFail: 0, blk: 0, lastT: -1, frames: 0, note: null, warned: false };
+function vfReset() { VF.mode = 'gl'; VF.glFail = 0; VF.blk = 0; VF.lastT = -1; VF.frames = 0; VF.okSeen = false; VF.warned = false; vfDirect(false); vfNote(''); }
+function vfNote(t) {
+  if (!VF.note) { VF.note = el('div', { class: 'vfnote', role: 'status' }); $('#videoWrap').append(VF.note); }
+  VF.note.textContent = t; VF.note.classList.toggle('hidden', !t);
+}
+function vfMean(src) { // medelljus 0–255 i en liten kopia; null om det inte går att läsa
+  var c = VF.c || (VF.c = document.createElement('canvas')); c.width = 32; c.height = 18;
+  var x = VF.x || (VF.x = c.getContext('2d', { willReadFrequently: true }));
+  try { x.clearRect(0, 0, 32, 18); x.drawImage(src, 0, 0, 32, 18); var d = x.getImageData(0, 0, 32, 18).data, s = 0; for (var i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4 * 3); } catch (e) { return null; }
+}
+function vfDirect(on) {
+  var wrap = $('#videoWrap');
+  if (on) { if (videoEl.parentNode !== wrap) wrap.insertBefore(videoEl, videoCanvas); videoEl.classList.add('vf-direct'); videoCanvas.classList.add('vf-over'); vfPlace(); }
+  else { videoEl.classList.remove('vf-direct'); videoEl.style.cssText = ''; videoCanvas.classList.remove('vf-over'); }
+}
+function vfPlace() {
+  var w = $('#videoWrap').getBoundingClientRect(), r = videoCanvas.getBoundingClientRect(), s = videoEl.style;
+  s.left = (r.left - w.left + $('#videoWrap').scrollLeft) + 'px'; s.top = (r.top - w.top + $('#videoWrap').scrollTop) + 'px'; s.width = r.width + 'px'; s.height = r.height + 'px';
+  s.filter = V.compare ? 'none' : cssFilterFor(V.holdLook || V.look);
+}
+function vfNoPicture() {
+  if (VF.mode === 'none') return; VF.mode = 'none'; vfDirect(false); vctx.clearRect(0, 0, V.w || 1, V.h || 1);
+  var base = 'Filmens bild kan inte visas i den här webbläsaren – bara ljudet går att spela. Filmer från iPhone/iCloud är ofta HEVC (H.265) med HDR/Dolby Vision. ';
+  var tips = 'Tips: i Windows installera "HEVC Video Extensions" från Microsoft Store och starta om Chrome, eller öppna Klarbild i Edge eller Safari. På iPhone kan du dela filmen med Alternativ → "Mest kompatibel" (H.264), eller spela in med Inställningar → Kamera → Format → "Mest kompatibel".';
+  vfNote(base + tips);
+  if (window.VideoDecoder && VideoDecoder.isConfigSupported) Promise.all(['hvc1.2.4.L153.B0', 'hvc1.1.6.L93.B0'].map(function (c) { return VideoDecoder.isConfigSupported({ codec: c, codedWidth: 1920, codedHeight: 1080 }).then(function (r) { return !!r.supported; }, function () { return false; }); })).then(function (r) {
+    if (VF.mode === 'none' && !r[0] && !r[1]) vfNote(base + 'Webbläsaren saknar avkodare för HEVC. ' + tips);
+  });
+}
+function vfNoFrames() { return VF.frames === 0 && !VF.okSeen && !(videoEl.webkitDecodedFrameCount > 0) && !(videoEl.getVideoPlaybackQuality && videoEl.getVideoPlaybackQuality().totalVideoFrames > 0); }
+videoEl.addEventListener('loadedmetadata', function () { if (!videoEl.videoWidth) vfNoPicture(); });
+videoEl.addEventListener('loadeddata', function () { setTimeout(function () { if (V.ready && !videoEl.videoWidth) vfNoPicture(); }, 300); });
+videoEl.addEventListener('playing', function () { var u = V.url; setTimeout(function () { if (V.url === u && VF.mode !== 'none' && V.playing && (videoEl.currentTime || 0) > 0.5 && (!videoEl.videoWidth || vfNoFrames())) vfNoPicture(); }, 1800); });
+(function () {
+  var oGL = glFrame;
+  glFrame = function (src, st, bypass, w, h) { var ok = oGL(src, st, bypass, w, h); if (src === videoEl) { if (!ok) VF.glFail++; else VF.glFail = 0; } return ok; };
+  var oRV = renderVideo;
+  renderVideo = function () {
+    if (!V.ready || videoEl.readyState < 2) return;
+    if (V.ready && !videoEl.videoWidth && videoEl.readyState >= 2 && VF.mode !== 'none') { vfNoPicture(); }
+    if (VF.mode === 'direct') {
+      vfPlace(); vctx.clearRect(0, 0, V.w, V.h);
+      if (!V.compare) { if (typeof drawTextAnim === 'function') drawTextAnim(vctx, V.w, V.h, V.text); if (typeof drawWatermark === 'function') drawWatermark(vctx, V.w, V.h); }
+      updateVTime(); return;
+    }
+    if (VF.mode === 'none') { updateVTime(); return; }
+    var g = V.gl; if (VF.mode === '2d') { V.gl = null; videoCanvas.style.filter = ''; }
+    try { oRV(); } finally { V.gl = g; }
+    if (VF.mode === 'gl' && VF.glFail >= 2) { VF.mode = '2d'; return requestVideoRender(); }
+    vfCheck();
+  };
+  function vfCheck() { // bara de första sekunderna efter start/sökning – billigt
+    var t = videoEl.currentTime || 0; if (VF.blk > 40 || Math.abs(t - VF.lastT) < 0.12) return; VF.lastT = t;
+    var out = vfMean(videoCanvas); if (out === null || out > 3) { VF.blk = 0; VF.okSeen = true; return; }
+    var raw = vfMean(videoEl);
+    if (VF.mode === 'gl' && raw !== null && raw > 3) { VF.mode = '2d'; requestVideoRender(); return; } // WebGL-uppladdningen ger svart (HDR)
+    if (!V.playing && !VF.okSeen) return; // stillbild: kan vara en svart första ruta – avgör först under uppspelning
+    VF.blk++;
+    if (VF.blk >= 8 && t > 1.2 && !VF.okSeen) {
+      var dec = VF.frames > 3 || (videoEl.webkitDecodedFrameCount || 0) > 3 || (videoEl.getVideoPlaybackQuality && videoEl.getVideoPlaybackQuality().totalVideoFrames > 3);
+      if (dec && videoEl.videoWidth) { VF.mode = 'direct'; vfDirect(true); vfNote('Filmen visas direkt (HDR-film som inte kan ritas om). Justeringar visas ungefärligt; exporten görs från originalfilen.'); setTimeout(function () { if (VF.mode === 'direct') vfNote(''); }, 6000); }
+      else vfNoPicture();
+    }
+  }
+  var oLV = loadVideo;
+  loadVideo = function (file) { vfReset(); oLV(file); var e = videoEl.onerror; videoEl.onerror = function () { if (e) e(); vfNoPicture(); }; };
+  if (videoEl.requestVideoFrameCallback) { var f = function () { VF.frames++; if (!V.playing) requestVideoRender(); videoEl.requestVideoFrameCallback(f); }; videoEl.requestVideoFrameCallback(f); }
+  videoEl.addEventListener('canplay', requestVideoRender);
+  window.addEventListener('resize', function () { if (VF.mode === 'direct') vfPlace(); });
 })();
 
 </script>
