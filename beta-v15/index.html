@@ -6199,27 +6199,42 @@ function wcStabMat(d, Z, W, H) { // utdata-uv → käll-uv för korrektionen d =
     [[0, 0], [W, 0], [0, H], [W, H]].forEach(function (q) { var px = A11 * q[0] + A12 * q[1] + b1, py = A21 * q[0] + A22 * q[1] + b2; if (px < -0.5 || py < -0.5 || px > W + 0.5 || py > H + 0.5) ok = false; }); return ok; } };
 }
 function wcStabPlan(c, fps, mode) {
-  var P = WC_STAB[mode], n = c.mot.length, Z = 1 / (1 - P.crop), keys = ['x', 'y', 'r', 's'], D = [], i, k;
+  var P = WC_STAB[mode], n = c.mot.length, Z = 1 / (1 - P.crop), keys = ['x', 'y', 'r', 's'], i, k;
   var C = {}; keys.forEach(function (q) { C[q] = new Float64Array(n); });
   var seg = [0]; for (i = 1; i < n; i++) { var m = c.mot[i]; if (m.cut) seg.push(i); keys.forEach(function (q) { C[q][i] = C[q][i - 1] + (m.cut ? 0 : m[q]); }); }
-  seg.push(n); var S = {}; keys.forEach(function (q) { S[q] = new Float64Array(n); });
-  for (var g = 0; g < seg.length - 1; g++) { var a = seg[g], b = seg[g + 1]; keys.forEach(function (q) { var sm = wcGauss(Array.prototype.slice.call(C[q], a, b), P.sig * fps, true); for (var j = a; j < b; j++) S[q][j] = sm[j - a]; }); }
-  for (i = 0; i < n; i++) D.push({ x: S.x[i] - C.x[i], y: S.y[i] - C.y[i], r: S.r[i] - C.r[i], s: (S.s[i] - C.s[i]) * P.zs });
-  // panoreringsbegränsare: största andel λ av korrektionen som får plats i beskärningen, jämnad över tid
-  var W = c.dw, H = c.dh, lam = new Float64Array(n), fit = function (d, l) { return wcStabMat({ x: d.x * l, y: d.y * l, r: d.r * l, s: d.s * l }, Z, W, H).fits(); };
-  for (i = 0; i < n; i++) { if (fit(D[i], 1)) { lam[i] = 1; continue; } var lo = 0, hi = 1; for (k = 0; k < 14; k++) { var md = (lo + hi) / 2; if (fit(D[i], md)) lo = md; else hi = md; } lam[i] = lo; }
-  var w2 = Math.max(1, Math.round(fps / 3)), mn = new Float64Array(n); for (i = 0; i < n; i++) { var v = 1; for (k = Math.max(0, i - w2); k <= Math.min(n - 1, i + w2); k++) v = Math.min(v, lam[k]); mn[i] = v; }
-  var ls = wcGauss(Array.prototype.slice.call(mn), fps / 6, false), clamped = 0, out = [];
-  for (i = 0; i < n; i++) { var l = Math.min(ls[i], 1); if (!fit(D[i], l)) { var lo2 = 0, hi2 = l; for (k = 0; k < 14; k++) { var m2 = (lo2 + hi2) / 2; if (fit(D[i], m2)) lo2 = m2; else hi2 = m2; } l = lo2; }
-    if (l < 0.999) clamped++; out.push(wcStabMat({ x: D[i].x * l, y: D[i].y * l, r: D[i].r * l, s: D[i].s * l }, Z, W, H).m); }
-  if (window.WCDBG) WCDBG.push({ mot: c.mot, lam: Array.prototype.slice.call(ls) });
+  seg.push(n);
+  var smooth = function (sig) { var S = {}; keys.forEach(function (q) { S[q] = new Float64Array(n); });
+    for (var g = 0; g < seg.length - 1; g++) { var a = seg[g], b = seg[g + 1]; keys.forEach(function (q) { var sm = wcGauss(Array.prototype.slice.call(C[q], a, b), sig * fps, true); for (var j = a; j < b; j++) S[q][j] = sm[j - a]; }); }
+    return S; };
+  var W = c.dw, H = c.dh, add = function (u, v, l) { return { x: u.x + v.x * l, y: u.y + v.y * l, r: u.r + v.r * l, s: u.s + v.s * l }; }, Z0 = { x: 0, y: 0, r: 0, s: 0 };
+  var fitV = function (v) { return wcStabMat(v, Z, W, H).fits(); }, clamped = 0;
+  // panoreringsbegränsare: största andel λ av korrektionen D (ovanpå redan given bas) som får plats i beskärningen, jämnad över tid
+  var solve = function (base, D) {
+    var lam = new Float64Array(n);
+    for (i = 0; i < n; i++) { if (fitV(add(base[i], D[i], 1))) { lam[i] = 1; continue; } var lo = 0, hi = 1; for (k = 0; k < 14; k++) { var md = (lo + hi) / 2; if (fitV(add(base[i], D[i], md))) lo = md; else hi = md; } lam[i] = lo; }
+    var w2 = Math.max(1, Math.round(fps / 3)), mn = new Float64Array(n); for (i = 0; i < n; i++) { var v = 1; for (k = Math.max(0, i - w2); k <= Math.min(n - 1, i + w2); k++) v = Math.min(v, lam[k]); mn[i] = v; }
+    var ls = wcGauss(Array.prototype.slice.call(mn), fps / 6, false), res = [];
+    for (i = 0; i < n; i++) { var l = Math.min(ls[i], 1); if (!fitV(add(base[i], D[i], l))) { var lo2 = 0, hi2 = l; for (k = 0; k < 14; k++) { var m2 = (lo2 + hi2) / 2; if (fitV(add(base[i], D[i], m2))) lo2 = m2; else hi2 = m2; } l = lo2; }
+      if (l < 0.999) clamped++; res.push(add(base[i], D[i], l)); }
+    return { v: res, lam: ls };
+  };
+  // v15b L-STAB: först skakningen (Lätts korta utjämning) – sedan, i den beskärning som blir över, Starks långa utjämning ovanpå.
+  // Tidigare skalades hela Stark-korrektionen ned när den inte fick plats, och då kom skakningen tillbaka (Stark skakade mer än Lätt).
+  var SL = smooth(WC_STAB.light.sig), zs = P.zs, D1 = [], base0 = [];
+  for (i = 0; i < n; i++) { D1.push({ x: SL.x[i] - C.x[i], y: SL.y[i] - C.y[i], r: SL.r[i] - C.r[i], s: (SL.s[i] - C.s[i]) * zs }); base0.push(Z0); }
+  var r1 = solve(base0, D1), fin = r1.v, lamOut = r1.lam;
+  if (P.sig > WC_STAB.light.sig) { var SS = smooth(P.sig), D2 = []; clamped = 0;
+    for (i = 0; i < n; i++) D2.push({ x: SS.x[i] - SL.x[i], y: SS.y[i] - SL.y[i], r: SS.r[i] - SL.r[i], s: (SS.s[i] - SL.s[i]) * zs });
+    var r2 = solve(r1.v, D2); fin = r2.v; lamOut = r2.lam; }
+  var out = fin.map(function (v) { return wcStabMat(v, Z, W, H).m; });
+  if (window.WCDBG) WCDBG.push({ mot: c.mot, lam: Array.prototype.slice.call(lamOut) });
   c.stabM = out; return { frames: n, begr: clamped, zoom: +Z.toFixed(3), cuts: seg.length - 2 };
 }
 async function wcAnalyse(plan, fps, X) {
   var stab = WCO.stab !== 'off' && WC_STAB[WCO.stab], enh = !!WCO.enh; if (!stab && !enh) return;
   var tot = 0, done = 0, t0 = performance.now(), work = 0; plan.clips.forEach(function (c) { tot += c.times.length; }); X.pre = 0.3; X.stabInfo = [];
   for (var ci = 0; ci < plan.clips.length; ci++) {
-    var c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? 256 : Math.round(256 * asp) & ~1, ah = asp >= 1 ? Math.round(256 / asp) & ~1 : 256;
+    var AW = WCO.stab === 'strong' ? 512 : 256, c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? AW : Math.round(AW * asp) & ~1, ah = asp >= 1 ? Math.round(AW / asp) & ~1 : AW; // v15b: Stark analyserar finare (mindre drift i banan)
     var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d', { willReadFrequently: true });
     var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 2 }), prev = null, cur = null, last = null; c.mot = []; c.lum = [];
     for await (var wc of sink.canvasesAtTimestamps(c.times)) {
@@ -6382,17 +6397,22 @@ function kbwOk() {
     var s = document.getElementById('kbProc'); if (!s || typeof Worker === 'undefined' || window.KB_NO_WORKER) return false;
     var url = URL.createObjectURL(new Blob(['self.window=self;\n' + s.textContent + '\n' + KBW_BODY], { type: 'text/javascript' }));
     var n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
-    for (var i = 0; i < n; i++) { var w = new Worker(url); w.onmessage = kbwMsg; w.onerror = function (e) { console.warn('P9 worker', e.message); }; KBW.pool.push({ w: w, busy: false }); }
+    KBW.url = url; for (var i = 0; i < n; i++) kbwSpawn();
     KBW.ok = true; KBW.n = n;
   } catch (e) { console.warn('P9: worker saknas', e); KBW.ok = false; }
   return KBW.ok;
 }
+function kbwSpawn() { var w = new Worker(KBW.url); w.onmessage = kbwMsg; w.onerror = function (e) { console.warn('P9 worker', e.message); }; KBW.pool.push({ w: w, busy: false }); }
+/* v15b L-MEM: lediga workers avslutas efter 15 s – deras minne (stora skivor vid 48 MP) lämnas då tillbaka direkt; nya startas vid behov */
+function kbwIdle() { clearTimeout(KBW.it); KBW.it = setTimeout(function () { if (KBW.q.length) return; KBW.pool = KBW.pool.filter(function (s) { if (s.busy) return true; try { s.w.terminate(); } catch (e) {} return false; }); }, window.KBW_IDLE_MS || 15000); }
 function kbwMsg(e) {
   var m = e.data, j = KBW.wait[m.id]; if (!j) return; delete KBW.wait[m.id];
   j.slot.busy = false; kbwPump();
   if (m.err) j.rej(new Error(m.err)); else j.res('res' in m ? m.res : new Uint8ClampedArray(m.buf));
 }
 function kbwPump() {
+  while (KBW.q.length && KBW.pool.length < KBW.n && KBW.pool.every(function (s) { return s.busy; })) kbwSpawn();
+  kbwIdle();
   while (KBW.q.length) {
     var slot = null; for (var i = 0; i < KBW.pool.length; i++) if (!KBW.pool[i].busy) { slot = KBW.pool[i]; break; }
     if (!slot) return;
