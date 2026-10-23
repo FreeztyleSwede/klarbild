@@ -5873,7 +5873,7 @@ async function wcExportFilm(sel, dims) {
     var sc = Math.min(W / (c.vw || W), H / (c.vh || H)); c.dw = plan.tl ? Math.max(2, Math.round((c.vw || W) * sc)) : W; c.dh = plan.tl ? Math.max(2, Math.round((c.vh || H) * sc)) : H;
     c.times = []; c.fi = []; // utdatabildernas tider i klippet
   }
-  for (var n = 0; n < N; n++) wcActive(plan, n / fps).forEach(function (a) { a.c.times.push(a.local); a.c.fi.push(Math.round((n / fps - a.c.s) * fps)); });
+  for (var n = 0; n < N; n++) wcActive(plan, n / fps).forEach(function (a) { a.c.times.push(Math.min(a.c.out - 1e-4, a.local + 0.25 / fps)); a.c.fi.push(Math.round((n / fps - a.c.s) * fps)); });
   if (window.wcAnalyse) await wcAnalyse(plan, fps, X);
   plan.clips.forEach(function (c, i) { c.idx = i; }); if (WCO.enh) wcEnhPlan(plan, fps);
   if (X.cancelled) return wcAbort(X);
@@ -6156,35 +6156,80 @@ function wcFitSim(v, w, h) { // v: [{x,y,u,v}] i pixlar → {tx,ty,a,b}: u = a·
     rows.forEach(function (q) { for (var i = 0; i < 4; i++) { r[i] += q[i] * q[4]; for (var j = 0; j < 4; j++) M[i][j] += q[i] * q[j]; } }); });
   var s = wcSolve4(M, r); return s && { a: s[0], b: s[1], tx: s[2], ty: s[3] };
 }
-function wcMotion(P, C, w, h, gx, gy, hp) { // innehållets förflyttning från referensbilden P till C (gx,gy = gissning i px)
-  hp = hp || wcHalf(P, w, h); var hc = wcHalf(C, w, h), R = 8, best = 1e9, ox = Math.round((gx || 0) / 2), oy = Math.round((gy || 0) / 2), bx = ox, by = oy;
-  var m = R + 1 + Math.max(Math.abs(ox), Math.abs(oy)); if (2 * m + 8 > hp.h) { ox = oy = 0; bx = by = 0; m = R + 1; }
-  for (var dy = oy - R; dy <= oy + R; dy++) for (var dx = ox - R; dx <= ox + R; dx++) { var s = wcSad(hp.g, hc.g, hp.w, m, m, hp.w - 2 * m, hp.h - 2 * m, dx, dy, 2); if (s < best) { best = s; bx = dx; by = dy; } }
-  if (best > 45) return { x: 0, y: 0, r: 0, s: 0, cut: true, sad: best }; // scenbyte/oskärpa: ingen korrektion över gränsen
-  var bw = Math.floor(w / 5), bh = Math.floor(h / 5), vs = [], r = 3;
-  [0.2, 0.5, 0.8].forEach(function (fy) { [0.2, 0.5, 0.8].forEach(function (fx) {
-    var x0 = Math.round(w * fx - bw / 2), y0 = Math.round(h * fy - bh / 2), cx = 2 * bx, cy = 2 * by;
-    var lo = Math.min(cx, cy) - r, hi = Math.max(cx, cy) + r; if (x0 + lo < 1 || y0 + lo < 1 || x0 + bw + hi >= w - 1 || y0 + bh + hi >= h - 1) return;
-    var b2 = 1e9, ux = 0, uy = 0, S = {};
-    for (var yy = cy - r; yy <= cy + r; yy++) for (var xx = cx - r; xx <= cx + r; xx++) { var s = wcSad(P, C, w, x0, y0, bw, bh, xx, yy, 1); S[xx + ',' + yy] = s; if (s < b2) { b2 = s; ux = xx; uy = yy; } }
+function wcMode1D(arr) { // tätaste hälften (Half-Sample Mode) – immun mot rörliga förgrundsobjekt upp till ~45 % av bilden
+  var a = arr.slice().sort(function (x, y) { return x - y; }), n = a.length;
+  if (!n) return 0; if (n < 3) return a[n >> 1];
+  var h = (n >> 1) + 1, bestW = 1e9, bestI = 0;
+  for (var i = 0; i <= n - h; i++) { var w = a[i + h - 1] - a[i]; if (w < bestW) { bestW = w; bestI = i; } }
+  var s = 0; for (var j = bestI; j < bestI + h; j++) s += a[j]; return s / h;
+}
+function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttning från P till C med bakgrundskonsensus (4×4 block)
+  var cx, cy;
+  if (fineOnly) { cx = Math.round(gx || 0); cy = Math.round(gy || 0); }
+  else {
+    hp = hp || wcHalf(P, w, h); var hc = wcHalf(C, w, h);
+    var ox = Math.round((gx || 0) / 2), oy = Math.round((gy || 0) / 2);
+    var R = 8, cbw = 20, cbh = 12, cxs = [], cys = [], cg = [0.2, 0.5, 0.8];
+    for (var ci = 0; ci < 3; ci++) for (var cj = 0; cj < 3; cj++) {
+      var cx0 = Math.round(cg[cj] * hp.w - cbw / 2), cy0 = Math.round(cg[ci] * hp.h - cbh / 2);
+      var cbs = 1e9, cbx = ox, cby = oy, c00 = 1e9;
+      for (var dy = oy - R; dy <= oy + R; dy++) {
+        if (cy0 + dy < 1 || cy0 + cbh + dy >= hp.h - 1) continue;
+        for (var dx = ox - R; dx <= ox + R; dx++) {
+          if (cx0 + dx < 1 || cx0 + cbw + dx >= hp.w - 1) continue;
+          var cs = wcSad(hp.g, hc.g, hp.w, cx0, cy0, cbw, cbh, dx, dy, 2);
+          if (dx === ox && dy === oy) c00 = cs;
+          if (cs < cbs) { cbs = cs; cbx = dx; cby = dy; }
+        }
+      }
+      if (cbs < 28 && (c00 - cbs > 0.25 || (cbx === ox && cby === oy))) { cxs.push(cbx); cys.push(cby); }
+    }
+    var bx = cxs.length ? Math.round(wcMode1D(cxs)) : ox, by = cys.length ? Math.round(wcMode1D(cys)) : oy;
+    var mx = Math.min(hp.w >> 2, Math.abs(bx) + 2), my = Math.min(hp.h >> 2, Math.abs(by) + 2);
+    var bs = wcSad(hp.g, hc.g, hp.w, mx, my, hp.w - 2 * mx, hp.h - 2 * my, bx, by, 2);
+    if (bs > 42) return { x: 0, y: 0, r: 0, s: 0, cut: true, sad: bs };
+    cx = 2 * bx; cy = 2 * by;
+  }
+  var bw = 26, bh = 16, r = fineOnly ? 2 : 3, pts = [], fg = [0.14, 0.38, 0.62, 0.86];
+  for (var gi = 0; gi < 4; gi++) for (var gj = 0; gj < 4; gj++) {
+    var fx = fg[gj], fy = fg[gi], x0 = Math.round(fx * w - bw / 2), y0 = Math.round(fy * h - bh / 2);
+    var tex = wcSad(P, P, w, x0, y0, bw - 2, bh - 2, 2, 2, 2);
+    if (tex < 1.5) continue;
+    var b2 = 1e9, ux = cx, uy = cy, S = {};
+    for (var yy = cy - r; yy <= cy + r; yy++) {
+      if (y0 + yy < 1 || y0 + bh + yy >= h - 1) continue;
+      for (var xx = cx - r; xx <= cx + r; xx++) {
+        if (x0 + xx < 1 || x0 + bw + xx >= w - 1) continue;
+        var s = wcSad(P, C, w, x0, y0, bw, bh, xx, yy, 1);
+        S[xx + ',' + yy] = s; if (s < b2) { b2 = s; ux = xx; uy = yy; }
+      }
+    }
+    if (b2 > 22) continue;
+    if (x0 + ux - 1 < 1 || x0 + bw + ux + 1 >= w || y0 + uy - 1 < 1 || y0 + bh + uy + 1 >= h) continue;
     var g = function (a, b) { var k = a + ',' + b; return k in S ? S[k] : wcSad(P, C, w, x0, y0, bw, bh, a, b, 1); };
     var sl = g(ux - 1, uy), sr = g(ux + 1, uy), su = g(ux, uy - 1), sd = g(ux, uy + 1), kx = sl + sr - 2 * b2, ky = su + sd - 2 * b2;
-    if (kx < 0.4 || ky < 0.4) return; // för lite struktur (himmel, vägg) – regionen hoppas över
-    vs.push({ x: x0 + bw / 2, y: y0 + bh / 2, u: ux + Math.max(-0.5, Math.min(0.5, (sl - sr) / (2 * kx))), v: uy + Math.max(-0.5, Math.min(0.5, (su - sd) / (2 * ky))) });
-  }); });
-  var res = { x: 2 * bx / w, y: 2 * by / h, r: 0, s: 0 };
-  if (vs.length >= 3) {
-    var f = wcFitSim(vs, w, h);
-    if (f) { var er = vs.map(function (p) { var x = p.x - w / 2, y = p.y - h / 2; return Math.hypot(f.a * x - f.b * y + f.tx - p.u, f.b * x + f.a * y + f.ty - p.v); }), srt = er.slice().sort(function (a, b) { return a - b; }), med = srt[srt.length >> 1];
-      var keep = vs.filter(function (p, i) { return er[i] <= Math.max(0.75, 3 * med); }); if (keep.length >= 3 && keep.length < vs.length) f = wcFitSim(keep, w, h) || f;
-      res = { x: f.tx / w, y: f.ty / h, r: Math.max(-0.05, Math.min(0.05, f.b)), s: Math.max(-0.05, Math.min(0.05, f.a)) }; }
-  } else if (vs.length) { var us = vs.map(function (p) { return p.u; }).sort(), vv = vs.map(function (p) { return p.v; }).sort(); res.x = us[us.length >> 1] / w; res.y = vv[vv.length >> 1] / h; }
-  // v15b: en finpassning som avviker från blocksökningen är en felpassning (upprepade mönster, brus) – inte ett scenbyte. Tidigare gav den
-  // 'cut' → stabiliseringen delades i segment och hoppade (ryck i exporten) och Förbättra film blandade in föregående bild utan förskjutning.
-  var cx0 = 2 * bx / w, cy0 = 2 * by / h;
-  if (Math.abs(res.x - cx0) > 3 / w * 2 || Math.abs(res.y - cy0) > 3 / h * 2) res = { x: cx0, y: cy0, r: 0, s: 0 };
-  if (Math.abs(res.x) > 0.2 || Math.abs(res.y) > 0.2) return { x: 0, y: 0, r: 0, s: 0, cut: true };
-  return res;
+    if (kx < 0.4 || ky < 0.4) continue;
+    pts.push({ x: x0 + bw / 2, y: y0 + bh / 2, u: ux + Math.max(-0.5, Math.min(0.5, (sl - sr) / (2 * kx))), v: uy + Math.max(-0.5, Math.min(0.5, (su - sd) / (2 * ky))) });
+  }
+  if (pts.length < 3) return { x: cx / w, y: cy / h, r: 0, s: 0, cut: false };
+  var tx0 = wcMode1D(pts.map(function (p) { return p.u; })), ty0 = wcMode1D(pts.map(function (p) { return p.v; }));
+  var devs = pts.map(function (p) { return Math.hypot(p.u - tx0, p.v - ty0); }), mad = wcMode1D(devs);
+  var tolPx = Math.max(0.85, Math.min(2.0, 2.5 * mad + 0.35));
+  var inl = pts.filter(function (p) { return Math.hypot(p.u - tx0, p.v - ty0) <= tolPx; });
+  if (inl.length < 3) inl = pts;
+  var tx = 0, ty = 0; for (var i = 0; i < inl.length; i++) { tx += inl[i].u; ty += inl[i].v; }
+  tx /= inl.length; ty /= inl.length;
+  var S2 = 0, B2 = 0;
+  for (var j = 0; j < inl.length; j++) { var p = inl[j], rx = p.x - w / 2, ry = p.y - h / 2; S2 += rx * rx + ry * ry; B2 += rx * (p.v - ty) - ry * (p.u - tx); }
+  var rot = (inl.length >= 6 && S2 > 1500) ? B2 / (S2 + 500) : 0;
+  if (rot !== 0) {
+    tx = 0; ty = 0;
+    for (var k = 0; k < inl.length; k++) { var q = inl[k], qx = q.x - w / 2, qy = q.y - h / 2; tx += q.u + rot * qy; ty += q.v - rot * qx; }
+    tx /= inl.length; ty /= inl.length;
+  }
+  if (Math.abs(rot) > 0.04) rot = 0;
+  if (Math.abs(tx / w) > 0.2 || Math.abs(ty / h) > 0.2) return { x: 0, y: 0, r: 0, s: 0, cut: true };
+  return { x: tx / w, y: ty / h, r: rot, s: 0, cut: false };
 }
 function wcGauss(a, sig, odd) { // gaussisk utjämning, punktspeglad i ändarna (behåller en jämn panorering)
   var n = a.length; if (n < 3 || sig <= 0) return a.slice(); var R = Math.ceil(sig * 3), k = [], ks = 0, i, j;
@@ -6208,22 +6253,30 @@ function wcStabPlan(c, fps, mode) {
     return S; };
   var W = c.dw, H = c.dh, add = function (u, v, l) { return { x: u.x + v.x * l, y: u.y + v.y * l, r: u.r + v.r * l, s: u.s + v.s * l }; }, Z0 = { x: 0, y: 0, r: 0, s: 0 };
   var fitV = function (v) { return wcStabMat(v, Z, W, H).fits(); }, clamped = 0;
-  // panoreringsbegränsare: största andel λ av korrektionen D (ovanpå redan given bas) som får plats i beskärningen, jämnad över tid
+  // panoreringsbegränsare: största andel λ av korrektionen D (ovanpå redan given bas) som får plats i beskärningen, mjukt jämnad under taket lam[i]
   var solve = function (base, D) {
     var lam = new Float64Array(n);
     for (i = 0; i < n; i++) { if (fitV(add(base[i], D[i], 1))) { lam[i] = 1; continue; } var lo = 0, hi = 1; for (k = 0; k < 14; k++) { var md = (lo + hi) / 2; if (fitV(add(base[i], D[i], md))) lo = md; else hi = md; } lam[i] = lo; }
     var w2 = Math.max(1, Math.round(fps / 3)), mn = new Float64Array(n); for (i = 0; i < n; i++) { var v = 1; for (k = Math.max(0, i - w2); k <= Math.min(n - 1, i + w2); k++) v = Math.min(v, lam[k]); mn[i] = v; }
-    var ls = wcGauss(Array.prototype.slice.call(mn), fps / 6, false), res = [];
-    for (i = 0; i < n; i++) { var l = Math.min(ls[i], 1); if (!fitV(add(base[i], D[i], l))) { var lo2 = 0, hi2 = l; for (k = 0; k < 14; k++) { var m2 = (lo2 + hi2) / 2; if (fitV(add(base[i], D[i], m2))) lo2 = m2; else hi2 = m2; } l = lo2; }
+    var ls = wcGauss(Array.prototype.slice.call(mn), fps / 5, false);
+    for (i = 0; i < n; i++) ls[i] = Math.min(ls[i], lam[i]);
+    ls = wcGauss(Array.prototype.slice.call(ls), fps / 10, false);
+    var res = [];
+    for (i = 0; i < n; i++) { var l = Math.min(ls[i], lam[i], 1); if (!fitV(add(base[i], D[i], l))) { var lo2 = 0, hi2 = l; for (k = 0; k < 14; k++) { var m2 = (lo2 + hi2) / 2; if (fitV(add(base[i], D[i], m2))) lo2 = m2; else hi2 = m2; } l = lo2; }
       if (l < 0.999) clamped++; res.push(add(base[i], D[i], l)); }
     return { v: res, lam: ls };
   };
-  // v15b L-STAB: först skakningen (Lätts korta utjämning) – sedan, i den beskärning som blir över, Starks långa utjämning ovanpå.
-  // Tidigare skalades hela Stark-korrektionen ned när den inte fick plats, och då kom skakningen tillbaka (Stark skakade mer än Lätt).
-  var SL = smooth(WC_STAB.light.sig), zs = P.zs, D1 = [], base0 = [];
-  for (i = 0; i < n; i++) { D1.push({ x: SL.x[i] - C.x[i], y: SL.y[i] - C.y[i], r: SL.r[i] - C.r[i], s: (SL.s[i] - C.s[i]) * zs }); base0.push(Z0); }
-  var r1 = solve(base0, D1), fin = r1.v, lamOut = r1.lam;
-  if (window.WC_ONESTAGE) { var SS1 = smooth(P.sig), D0 = []; for (i = 0; i < n; i++) D0.push({ x: SS1.x[i] - C.x[i], y: SS1.y[i] - C.y[i], r: SS1.r[i] - C.r[i], s: (SS1.s[i] - C.s[i]) * zs }); clamped = 0; var r0 = solve(base0, D0); fin = r0.v; lamOut = r0.lam; }
+  // Stegvis utjämning: 1) högfrekvent handskakning (0,14 s) tas alltid bort först så den aldrig läcker igenom vid panorering,
+  // 2) Lätts utjämning (0,5 s) ovanpå, 3) Starks långa utjämning (1,5 s) i resterande beskärningsmarginal.
+  var SF = smooth(0.14), SL = smooth(WC_STAB.light.sig), zs = P.zs, D0 = [], D1 = [], base0 = [];
+  for (i = 0; i < n; i++) {
+    D0.push({ x: SF.x[i] - C.x[i], y: SF.y[i] - C.y[i], r: SF.r[i] - C.r[i], s: (SF.s[i] - C.s[i]) * zs });
+    D1.push({ x: SL.x[i] - SF.x[i], y: SL.y[i] - SF.y[i], r: SL.r[i] - SF.r[i], s: (SL.s[i] - SF.s[i]) * zs });
+    base0.push(Z0);
+  }
+  var r0 = solve(base0, D0); clamped = 0;
+  var r1 = solve(r0.v, D1), fin = r1.v, lamOut = r1.lam;
+  if (window.WC_ONESTAGE) { var SS1 = smooth(P.sig), DA = []; for (i = 0; i < n; i++) DA.push({ x: SS1.x[i] - C.x[i], y: SS1.y[i] - C.y[i], r: SS1.r[i] - C.r[i], s: (SS1.s[i] - C.s[i]) * zs }); clamped = 0; var rA = solve(base0, DA); fin = rA.v; lamOut = rA.lam; }
   else if (P.sig > WC_STAB.light.sig) { var SS = smooth(P.sig), D2 = []; clamped = 0;
     for (i = 0; i < n; i++) D2.push({ x: SS.x[i] - SL.x[i], y: SS.y[i] - SL.y[i], r: SS.r[i] - SL.r[i], s: (SS.s[i] - SL.s[i]) * zs });
     var r2 = solve(r1.v, D2); fin = r2.v; lamOut = r2.lam; }
@@ -6235,24 +6288,40 @@ async function wcAnalyse(plan, fps, X) {
   var stab = WCO.stab !== 'off' && WC_STAB[WCO.stab], enh = !!WCO.enh; if (!stab && !enh) return;
   var tot = 0, done = 0, t0 = performance.now(), work = 0; plan.clips.forEach(function (c) { tot += c.times.length; }); X.pre = 0.3; X.stabInfo = [];
   for (var ci = 0; ci < plan.clips.length; ci++) {
-    var AW = window.WC_AW || 256, c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? AW : Math.round(AW * asp) & ~1, ah = asp >= 1 ? Math.round(AW / asp) & ~1 : AW; // v15b: 512 px för Stark gav felskattad zoom efter scenbyte (H-STAB1) – samma 256 px som v15
+    var AW = window.WC_AW || 256, c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? AW : Math.round(AW * asp) & ~1, ah = asp >= 1 ? Math.round(AW / asp) & ~1 : AW;
     var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d', { willReadFrequently: true });
-    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 2 }), prev = null, cur = null, last = null; c.mot = []; c.lum = [];
+    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 2 }), prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
     for await (var wc of sink.canvasesAtTimestamps(c.times)) {
       if (X.cancelled) return;
       if (document.hidden) await wcWaitVisible(X);
       var a = performance.now();
-      if (wc) { cx.drawImage(wc.canvas, 0, 0, aw, ah); var g = wcGray(cx.getImageData(0, 0, aw, ah).data, aw * ah), L = 0;
-        for (var i = 0; i < g.length; i += 3) { var y = g[i] / 255; L += y * y * Math.sqrt(y) ; } c.lum.push(Math.log2(Math.max(1e-4, L / Math.ceil(g.length / 3))));
-        // jämförs mot en referensbild (byts var 10:e bild) i stället för mot föregående – mätfelen summeras då inte bild för bild
-        if (!prev) { c.mot.push({ x: 0, y: 0, r: 0, s: 0 }); last = { g: g, k: 1, p: { x: 0, y: 0, r: 0, s: 0 }, v: { x: 0, y: 0 } }; prev = { g: g, h: wcHalf(g, aw, ah), k: 0, p: { x: 0, y: 0, r: 0, s: 0 } }; cur = { x: 0, y: 0, r: 0, s: 0 }; }
-        else { var mm = wcMotion(prev.g, g, aw, ah, (cur.x - prev.p.x) * aw, (cur.y - prev.p.y) * ah, prev.h), np;
-          if (mm.cut && last && last.k === c.mot.length) { var m2 = wcMotion(last.g, g, aw, ah, last.v.x * aw, last.v.y * ah); // v15b: försök mot föregående bild innan scenbyte
-            if (!m2.cut) { np = { x: last.p.x + m2.x, y: last.p.y + m2.y, r: last.p.r + m2.r, s: last.p.s + m2.s }; c.mot.push({ x: np.x - cur.x, y: np.y - cur.y, r: np.r - cur.r, s: np.s - cur.s }); cur = np; prev = { g: g, h: wcHalf(g, aw, ah), k: c.mot.length - 1, p: cur }; last = { g: g, k: c.mot.length, p: cur, v: m2 }; mm = null; } }
-          if (!mm) {} else if (mm.cut) { c.mot.push(mm); np = cur; }
-          else { np = { x: prev.p.x + mm.x, y: prev.p.y + mm.y, r: prev.p.r + mm.r, s: prev.p.s + mm.s }; c.mot.push({ x: np.x - cur.x, y: np.y - cur.y, r: np.r - cur.r, s: np.s - cur.s }); }
-          if (mm) { last = { g: g, k: c.mot.length, p: np, v: mm.cut ? { x: 0, y: 0 } : c.mot[c.mot.length - 1] }; cur = np; } if (mm && (mm.cut || c.mot.length - 1 - prev.k >= 10)) prev = { g: g, h: wcHalf(g, aw, ah), k: c.mot.length - 1, p: cur }; } }
-      else { c.mot.push({ x: 0, y: 0, r: 0, s: 0, miss: true }); /* v15b: saknad bild är inte ett scenbyte (bryter inte stabiliseringen) */ c.lum.push(c.lum.length ? c.lum[c.lum.length - 1] : -2); }
+      if (wc) { cx.drawImage(wc.canvas, 0, 0, aw, ah); var g = wcGray(cx.getImageData(0, 0, aw, ah).data, aw * ah), hg = wcHalf(g, aw, ah), L = 0;
+        for (var i = 0; i < g.length; i += 3) { var y = g[i] / 255; L += y * y * Math.sqrt(y); } c.lum.push(Math.log2(Math.max(1e-4, L / Math.ceil(g.length / 3))));
+        // Steg-för-steg mellanskillnad med mjuk subpixel-förankring: undviker de periodiska 10-bildersrycken när kamera och objekt rör sig samtidigt
+        if (!lastG) { c.mot.push({ x: 0, y: 0, r: 0, s: 0 }); cur = { x: 0, y: 0, r: 0, s: 0 }; prev = { g: g, h: hg, k: 0, p: cur }; lastV = { x: 0, y: 0 }; }
+        else {
+          var m1 = wcMotion(lastG, g, aw, ah, lastV.x * aw, lastV.y * ah, lastH, false);
+          if (m1.cut) { c.mot.push(m1); prev = { g: g, h: hg, k: c.mot.length - 1, p: cur }; lastV = { x: 0, y: 0 }; }
+          else {
+            var np = { x: cur.x + m1.x, y: cur.y + m1.y, r: cur.r + m1.r, s: 0 };
+            var idx = c.mot.length, dxA = (np.x - prev.p.x) * aw, dyA = (np.y - prev.p.y) * ah;
+            if (idx - prev.k >= 2 && Math.abs(dxA) <= 10 && Math.abs(dyA) <= 10) {
+              var mA = wcMotion(prev.g, g, aw, ah, dxA, dyA, prev.h, true);
+              if (!mA.cut) {
+                var ex = (prev.p.x + mA.x - np.x) * aw, ey = (prev.p.y + mA.y - np.y) * ah, er = prev.p.r + mA.r - np.r;
+                if (Math.hypot(ex, ey) <= 0.65) {
+                  np.x += 0.5 * ex / aw; np.y += 0.5 * ey / ah;
+                  if (Math.abs(er) <= 0.006) np.r += 0.5 * er;
+                } else prev = { g: g, h: hg, k: idx, p: np };
+              }
+            }
+            if (idx - prev.k >= 8 || Math.abs(dxA) > 10 || Math.abs(dyA) > 10) prev = { g: g, h: hg, k: idx, p: np };
+            var step = { x: np.x - cur.x, y: np.y - cur.y, r: np.r - cur.r, s: 0 };
+            c.mot.push(step); cur = np; lastV = step;
+          }
+        }
+        lastG = g; lastH = hg;
+      } else { c.mot.push({ x: 0, y: 0, r: 0, s: 0, miss: true }); c.lum.push(c.lum.length ? c.lum[c.lum.length - 1] : -2); }
       work += performance.now() - a; done++;
       if (done % 10 === 0) wcProgress(X, X.pre * done / tot, 'Analyserar rörelser');
     }
