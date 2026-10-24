@@ -6074,12 +6074,29 @@ async function wcAudioDelay(codec, SR) {
     var dl = (bi - at) / SR; return dl > 0 && dl < 0.2 ? dl : 0;
   } catch (er) { return 0; }
 }
+function wcAsc(SR, CH) { // AudioSpecificConfig för AAC-LC: objekttyp 2, frekvensindex, kanaler
+  var fi = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000].indexOf(SR); if (fi < 0) fi = 3;
+  return new Uint8Array([(2 << 3) | (fi >> 1), ((fi & 1) << 7) | (CH << 3)]);
+}
+function wcAudioMeta(meta, codec, SR, CH) { // v16: vissa kodare (Safari) ger ingen eller fel decoderConfig → trasig esds (0 kanaler, 22050 Hz)
+  var dc = meta && meta.decoderConfig ? Object.assign({}, meta.decoderConfig) : {};
+  dc.codec = codec === 'aac' ? 'mp4a.40.2' : (dc.codec || 'opus'); dc.sampleRate = SR; dc.numberOfChannels = CH;
+  if (codec === 'aac') {
+    var ok = false, de = dc.description;
+    if (de) { var u = de instanceof Uint8Array ? de : new Uint8Array(de.buffer ? de.buffer.slice(de.byteOffset || 0, (de.byteOffset || 0) + de.byteLength) : de);
+      if (u.length >= 2) { var ot = u[0] >> 3, fi = ((u[0] & 7) << 1) | (u[1] >> 7), ch = (u[1] >> 3) & 15; ok = ot === 2 && ch === CH && [48000, 44100][[3, 4].indexOf(fi)] === SR; } }
+    if (!ok) dc.description = wcAsc(SR, CH);
+  }
+  return { decoderConfig: dc };
+}
 async function wcAudioPrep(plan, caps, X) {
-  var SR = 48000, CH = 2, total = plan.total, vv = Math.max(0, V.videoVol) / 100, mv = Math.max(0, V.musicVol) / 100, anyFilm = false;
+  var SR = 48000, CH = 2, srcSR = 0, srcCH = 0, total = plan.total, vv = Math.max(0, V.videoVol) / 100, mv = Math.max(0, V.musicVol) / 100, anyFilm = false;
   for (var i = 0; i < plan.clips.length; i++) {
     var c = plan.clips[i]; c.at = vv > 0 ? await c.input.getPrimaryAudioTrack() : null;
-    if (c.at) { if (!(await c.at.canDecode())) throw { fallback: true, why: 'filmens ljud (' + (c.at.codec || '?') + ') kan inte avkodas här' }; c.asink = new MB.AudioBufferSink(c.at); anyFilm = true; }
+    if (c.at) { if (!(await c.at.canDecode())) throw { fallback: true, why: 'filmens ljud (' + (c.at.codec || '?') + ') kan inte avkodas här' }; c.asink = new MB.AudioBufferSink(c.at); anyFilm = true; if (!srcSR) { srcSR = c.at.sampleRate || 0; srcCH = c.at.numberOfChannels || 0; } }
   }
+  // v16: samplingsfrekvens och kanaler från källan (AAC-LC: 44,1 eller 48 kHz, mono eller stereo); musik kräver stereo
+  if (srcSR === 44100 || srcSR === 48000) SR = srcSR;
   var pieces = [];
   if (mv > 0) {
     if (V.track && V.track.length) V.track.forEach(function (pc) { if (pc.start < total) pieces.push({ m: pc.m, s: pc.start, d: pc.dur, fo: Math.min(0.5, pc.dur / 4) }); });
@@ -6087,6 +6104,7 @@ async function wcAudioPrep(plan, caps, X) {
   }
   if (pieces.length) { ensureAudio(); for (var k = 0; k < pieces.length; k++) pieces[k].buf = await getMusicBuffer(pieces[k].m); pieces = pieces.filter(function (p) { return p.buf; }); }
   if (!anyFilm && !pieces.length) return null;
+  CH = (anyFilm && srcCH === 1 && !pieces.length) ? 1 : 2; X.aSR = SR; X.aCH = CH;
   if (!caps.audio || !(window.OfflineAudioContext || window.webkitOfflineAudioContext)) throw { fallback: true, why: 'ljudkodning (AAC) saknas' };
   var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, codec = caps.audio, asrc = new MB.EncodedAudioPacketSource(codec);
   X.acodec = codec;
@@ -6101,7 +6119,8 @@ async function wcAudioPrep(plan, caps, X) {
     else if (ts < nextT - dur / 2) { X.aFix++; ts = nextT; } else if (Math.abs(ts - nextT) < dur / 2) ts = nextT;
     nextT = ts + dur;
     var d = new Uint8Array(ch.byteLength); ch.copyTo(d);
-    var pk = new MB.EncodedPacket(d, 'key', ts, dur), m = first ? meta : undefined; first = false;
+    if (codec === 'aac' && d.length > 7 && d[0] === 0xFF && (d[1] & 0xF6) === 0xF0) d = d.subarray((d[1] & 1) ? 7 : 9); // v16: ADTS-huvud bort (råa AAC-ramar i MP4)
+    var m = first ? wcAudioMeta(meta, codec, SR, CH) : undefined, pk = new MB.EncodedPacket(d, 'key', ts, dur); first = false;
     chain = chain.then(function () { return asrc.add(pk, m); }); chain.catch(function (e) { err = err || e; });
   }, error: function (e) { err = err || e; } });
   enc.configure({ codec: codec === 'aac' ? 'mp4a.40.2' : 'opus', sampleRate: SR, numberOfChannels: CH, bitrate: V.compress ? 96000 : 160000 });
