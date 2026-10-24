@@ -6267,6 +6267,7 @@ function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttn
       }
       var pk = function (a, b) { var k = a + ',' + b; return k in CS ? CS[k] - cbs : 9; }; // v16: tydlig topp i båda riktningar, annars brus/gradient
       if (Math.min(pk(cbx - 2, cby), pk(cbx + 2, cby), pk(cbx, cby - 2), pk(cbx, cby + 2)) < WCQ.p1) continue;
+      if (Math.abs(cbx - ox) >= R || Math.abs(cby - oy) >= R) continue; // v16c (S2): träff på sökgränsen = rörelsen kan vara större → blocket räknas inte
       if (cbs < 28 && (c00 - cbs > 0.25 || (cbx === ox && cby === oy))) { cxs.push(cbx); cys.push(cby); }
     }
     weak = cxs.length < 2; // v16: för få texturerade grovblock → rörelsen är okänd
@@ -6281,16 +6282,22 @@ function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttn
     var fx = fg[gj], fy = fg[gi], x0 = Math.round(fx * w - bw / 2), y0 = Math.round(fy * h - bh / 2);
     var tex = Math.min(wcSad(P, P, w, x0, y0, bw - 2, bh, 2, 0, 2), wcSad(P, P, w, x0, y0, bw, bh - 2, 0, 2, 2)); // v16: textur i båda riktningarna (himmelsgradient ger annars x = 0)
     if (tex < WCQ.t2) continue;
-    var b2 = 1e9, ux = cx, uy = cy, S = {};
-    for (var yy = cy - r; yy <= cy + r; yy++) {
-      if (y0 + yy < 1 || y0 + bh + yy >= h - 1) continue;
-      for (var xx = cx - r; xx <= cx + r; xx++) {
-        if (x0 + xx < 1 || x0 + bw + xx >= w - 1) continue;
-        var s = wcSad(P, C, w, x0, y0, bw, bh, xx, yy, 1);
-        S[xx + ',' + yy] = s; if (s < b2) { b2 = s; ux = xx; uy = yy; }
+    var b2 = 1e9, ux = cx, uy = cy, S = {}, rr = r;
+    for (var pass = 0; pass < 2; pass++) { // v16c (S2): träff på sökgränsen → sök en gång till med större radie; ligger den kvar på gränsen räknas blocket inte
+      for (var yy = cy - rr; yy <= cy + rr; yy++) {
+        if (y0 + yy < 1 || y0 + bh + yy >= h - 1) continue;
+        for (var xx = cx - rr; xx <= cx + rr; xx++) {
+          if (x0 + xx < 1 || x0 + bw + xx >= w - 1) continue;
+          var k0 = xx + ',' + yy; if (k0 in S) continue;
+          var s = wcSad(P, C, w, x0, y0, bw, bh, xx, yy, 1);
+          S[k0] = s; if (s < b2) { b2 = s; ux = xx; uy = yy; }
+        }
       }
+      if (Math.abs(ux - cx) < rr && Math.abs(uy - cy) < rr) break;
+      if (pass === 0) rr = r + 3;
     }
     if (b2 > 22) continue;
+    if (Math.abs(ux - cx) >= rr || Math.abs(uy - cy) >= rr) continue;
     if (x0 + ux - 1 < 1 || x0 + bw + ux + 1 >= w || y0 + uy - 1 < 1 || y0 + bh + uy + 1 >= h) continue;
     var g = function (a, b) { var k = a + ',' + b; return k in S ? S[k] : wcSad(P, C, w, x0, y0, bw, bh, a, b, 1); };
     var sl = g(ux - 1, uy), sr = g(ux + 1, uy), su = g(ux, uy - 1), sd = g(ux, uy + 1), kx = sl + sr - 2 * b2, ky = su + sd - 2 * b2;
