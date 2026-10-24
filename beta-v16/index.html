@@ -953,6 +953,18 @@ body.vfs #videoCard .canvas-wrap{padding:env(safe-area-inset-top) env(safe-area-
 body.vfs #videoCard .canvas-wrap canvas{border-radius:0;box-shadow:none;object-fit:contain}
 body.vfs header.top,body.vfs .panel,body.vfs #videoStageTools,body.vfs #videoBadge{display:none!important}
 #videoCard:fullscreen{background:#000}
+
+/* v16b (F1, R1): synligt små knappar men tryckytor på minst 44 px (osynlig ::before-yta) */
+#vbar .playbtn,#vbar .vfsbtn,.rt-btn{position:relative}
+#vbar .playbtn::before,#vbar .vfsbtn::before{content:"";position:absolute;inset:-7px}
+body.vfs #vfsExit{position:absolute!important;top:calc(6px + env(safe-area-inset-top));right:calc(6px + env(safe-area-inset-right));width:44px;height:44px;border:5px solid transparent;background-clip:padding-box}
+#vbar .vprog{height:44px!important;margin:-4px 0!important}
+#vbar .vprog::before,#vbar .vprog #vprogFill{top:20px}
+#vbar .vprog .vknob{width:44px!important;height:44px!important}
+#vbar .vprog .vknob::after{width:18px;height:18px}
+.rt-btn::before{content:"";position:absolute;inset:-6px -2px}
+.rt-btn{min-width:44px}
+#rtSize{height:44px;min-height:44px}
 </style>
 </head>
 <body>
@@ -6232,6 +6244,7 @@ function wcMode1D(arr) { // tätaste hälften (Half-Sample Mode) – immun mot r
   for (var i = 0; i <= n - h; i++) { var w = a[i + h - 1] - a[i]; if (w < bestW) { bestW = w; bestI = i; } }
   var s = 0; for (var j = bestI; j < bestI + h; j++) s += a[j]; return s / h;
 }
+var WCQ = { t1: 0.3, p1: 0.2, t2: 0.3, p2: 0.2, cf: 1, cfmin: -1, r: 3 }; // v16b: tröskelvärden för rörelsemätningen (justerbara i test)
 function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttning från P till C med bakgrundskonsensus (4×4 block)
   var cx, cy, weak = false;
   if (fineOnly) { cx = Math.round(gx || 0); cy = Math.round(gy || 0); }
@@ -6241,7 +6254,7 @@ function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttn
     var R = 8, cbw = 20, cbh = 12, cxs = [], cys = [], cg = [0.2, 0.5, 0.8];
     for (var ci = 0; ci < 3; ci++) for (var cj = 0; cj < 3; cj++) {
       var cx0 = Math.round(cg[cj] * hp.w - cbw / 2), cy0 = Math.round(cg[ci] * hp.h - cbh / 2);
-      if (Math.min(wcSad(hp.g, hp.g, hp.w, cx0, cy0, cbw - 2, cbh, 2, 0, 2), wcSad(hp.g, hp.g, hp.w, cx0, cy0, cbw, cbh - 2, 0, 2, 2)) < 1.5) continue; // v16: texturlös himmel ger slumpvisa träffar (brus) – hoppa över
+      if (Math.min(wcSad(hp.g, hp.g, hp.w, cx0, cy0, cbw - 2, cbh, 2, 0, 2), wcSad(hp.g, hp.g, hp.w, cx0, cy0, cbw, cbh - 2, 0, 2, 2)) < WCQ.t1) continue; // v16: texturlös himmel ger slumpvisa träffar (brus) – hoppa över
       var cbs = 1e9, cbx = ox, cby = oy, c00 = 1e9, CS = {};
       for (var dy = oy - R; dy <= oy + R; dy++) {
         if (cy0 + dy < 1 || cy0 + cbh + dy >= hp.h - 1) continue;
@@ -6253,7 +6266,7 @@ function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttn
         }
       }
       var pk = function (a, b) { var k = a + ',' + b; return k in CS ? CS[k] - cbs : 9; }; // v16: tydlig topp i båda riktningar, annars brus/gradient
-      if (Math.min(pk(cbx - 2, cby), pk(cbx + 2, cby), pk(cbx, cby - 2), pk(cbx, cby + 2)) < 1.0) continue;
+      if (Math.min(pk(cbx - 2, cby), pk(cbx + 2, cby), pk(cbx, cby - 2), pk(cbx, cby + 2)) < WCQ.p1) continue;
       if (cbs < 28 && (c00 - cbs > 0.25 || (cbx === ox && cby === oy))) { cxs.push(cbx); cys.push(cby); }
     }
     weak = cxs.length < 2; // v16: för få texturerade grovblock → rörelsen är okänd
@@ -6263,11 +6276,11 @@ function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttn
     if (bs > 42) return { x: 0, y: 0, r: 0, s: 0, cut: true, sad: bs };
     cx = 2 * bx; cy = 2 * by;
   }
-  var bw = 26, bh = 16, r = fineOnly ? 2 : 3, pts = [], fg = [0.14, 0.38, 0.62, 0.86];
+  var bw = 26, bh = 16, r = fineOnly ? 2 : WCQ.r, pts = [], fg = [0.14, 0.38, 0.62, 0.86];
   for (var gi = 0; gi < 4; gi++) for (var gj = 0; gj < 4; gj++) {
     var fx = fg[gj], fy = fg[gi], x0 = Math.round(fx * w - bw / 2), y0 = Math.round(fy * h - bh / 2);
     var tex = Math.min(wcSad(P, P, w, x0, y0, bw - 2, bh, 2, 0, 2), wcSad(P, P, w, x0, y0, bw, bh - 2, 0, 2, 2)); // v16: textur i båda riktningarna (himmelsgradient ger annars x = 0)
-    if (tex < 1.5) continue;
+    if (tex < WCQ.t2) continue;
     var b2 = 1e9, ux = cx, uy = cy, S = {};
     for (var yy = cy - r; yy <= cy + r; yy++) {
       if (y0 + yy < 1 || y0 + bh + yy >= h - 1) continue;
@@ -6282,10 +6295,10 @@ function wcMotion(P, C, w, h, gx, gy, hp, fineOnly) { // innehållets förflyttn
     var g = function (a, b) { var k = a + ',' + b; return k in S ? S[k] : wcSad(P, C, w, x0, y0, bw, bh, a, b, 1); };
     var sl = g(ux - 1, uy), sr = g(ux + 1, uy), su = g(ux, uy - 1), sd = g(ux, uy + 1), kx = sl + sr - 2 * b2, ky = su + sd - 2 * b2;
     if (kx < 0.4 || ky < 0.4) continue;
-    if (Math.min(g(ux - 2, uy), g(ux + 2, uy), g(ux, uy - 2), g(ux, uy + 2)) - b2 < 1.0) continue; // v16: tydlig topp
+    if (Math.min(g(ux - 2, uy), g(ux + 2, uy), g(ux, uy - 2), g(ux, uy + 2)) - b2 < WCQ.p2) continue; // v16: tydlig topp
     pts.push({ x: x0 + bw / 2, y: y0 + bh / 2, u: ux + Math.max(-0.5, Math.min(0.5, (sl - sr) / (2 * kx))), v: uy + Math.max(-0.5, Math.min(0.5, (su - sd) / (2 * ky))) });
   }
-  if (pts.length < 3) return { x: cx / w, y: cy / h, r: 0, s: 0, cut: false, unk: true }; // v16: okänd – planen interpolerar
+  if (pts.length < 3) return { x: cx / w, y: cy / h, r: 0, s: 0, cut: false, unk: fineOnly || weak || !(WCQ.cf && Math.hypot(cx / w * 1920, cy / h * 1080) > WCQ.cfmin) }; // v16: okänd – planen interpolerar
   var tx0 = wcMode1D(pts.map(function (p) { return p.u; })), ty0 = wcMode1D(pts.map(function (p) { return p.v; }));
   var devs = pts.map(function (p) { return Math.hypot(p.u - tx0, p.v - ty0); }), mad = wcMode1D(devs);
   var tolPx = Math.max(0.85, Math.min(2.0, 2.5 * mad + 0.35));
@@ -7049,7 +7062,12 @@ function rtUndo() { if (RT.busy || !P.retouch || !P.retouch.length) return; var 
   /* uttoning: under uppspelning försvinner reglaget efter 2,5 s utan rörelse; tryck, mus eller tangent tar fram det */
   var t = 0;
   function idle(v) { bar.classList.toggle('vbar-idle', v); x.classList.toggle('vbar-idle', v); }
-  function wake() { idle(false); clearTimeout(t); t = setTimeout(function () { if (V.playing && !bar.matches(':hover')) idle(true); }, 2500); }
+  // v16b (F2): ingen :hover – på pekskärm fastnar den på knappen som trycktes. Bara en riktig mus över reglaget håller det framme.
+  var mouseOn = false, canHover = !!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches);
+  bar.addEventListener('pointerenter', function (e) { if (e.pointerType === 'mouse' && canHover) mouseOn = true; });
+  bar.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { mouseOn = false; wake(); } });
+  bar.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'mouse') mouseOn = false; });
+  function wake() { idle(false); clearTimeout(t); t = setTimeout(function () { if (V.playing && !mouseOn) idle(true); }, 2500); }
   window.vbarWake = wake;
   ['pointerdown', 'pointermove', 'touchstart', 'keydown'].forEach(function (ev) { card.addEventListener(ev, wake, { passive: true }); });
   videoEl.addEventListener('play', wake); videoEl.addEventListener('pause', function () { clearTimeout(t); idle(false); });
