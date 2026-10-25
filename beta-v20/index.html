@@ -788,6 +788,9 @@ html.bs-l .tools button{min-height:66px;font-size:14px}html.bs-l .tools button s
 .tltrack{position:relative;flex:1;height:44px;border-radius:8px;background:rgba(0,0,0,.18);touch-action:none}.tltrack.music{height:30px}
 .tlclip,.tlpiece{position:absolute;top:2px;bottom:2px;border-radius:7px;display:flex;align-items:center;gap:6px;padding:0 6px;overflow:hidden;white-space:nowrap;font-size:12px;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;box-sizing:border-box}
 .tlclip{background:#1a7fc1;color:#fff;border:2px solid transparent}.tlclip.on{border-color:#ffd34d}.tlclip.drag{opacity:.85;z-index:3;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.tlclip.cut{border-left:3px dashed #ffd34d}.tlclip .tlslow{position:absolute;bottom:0;height:7px;background:repeating-linear-gradient(135deg,#ff8a3d 0 5px,#ffd34d 5px 10px);border-radius:3px;pointer-events:none}
+.vprog{position:relative}.vmark{position:absolute;top:0;bottom:0;pointer-events:none;z-index:1}.vm-slow{background:rgba(255,138,61,.55);border-radius:3px}.vm-cut{width:3px;margin-left:-1px;background:#ffd34d}.vm-join{width:2px;background:rgba(255,255,255,.7)}
+.delarow{flex-wrap:wrap;gap:6px}.delarow .btn{min-height:44px}
 .tlpiece{background:#b8860b;color:#fff}
 #tlSelCard .btnrow{display:flex;flex-wrap:wrap;gap:6px}#tlSelCard .btnrow .btn{flex:1 1 40%;min-width:0;font-size:15px;padding:8px 6px}
 .tlhead{position:absolute;top:-3px;bottom:-3px;left:0;width:2px;margin-left:-1px;background:#ff453a;pointer-events:none;z-index:4}
@@ -987,6 +990,7 @@ body.vfs #vfsExit{position:absolute!important;top:calc(6px + env(safe-area-inset
 #vbar .vprog .vknob::after{width:18px;height:18px}
 .rt-btn::before{content:"";position:absolute;inset:-6px -2px}
 .rt-btn{min-width:48px}
+#autoBtn,.autobtn{min-height:44px!important}.rt-top .rt-btn,#rtUndo,#rtDone{min-height:44px}
 .rt-btn.rt-mode::before{inset:-8px -1px}
 .btnrow.lgbtns .btn{min-height:48px!important;padding:6px 8px;font-size:15px;line-height:1.15}
 #rtSize{height:44px;min-height:44px}
@@ -1003,6 +1007,18 @@ body.vfs #vfsExit{position:absolute!important;top:calc(6px + env(safe-area-inset
 .slowhead{display:flex;align-items:center;justify-content:space-between}.slowhead .btn{min-height:44px;padding:6px 14px;font-size:15px;flex:0 0 auto}
 .slowrow{flex-wrap:wrap}.slowrow .btn{font-size:15px;padding:8px 8px;min-height:44px}
 .pledit #photoCanvas,.lgedit-p #photoCanvas,.lgedit-v #videoCanvas{touch-action:none}
+/* v20: redigeringsmenyn – en rad som kan skrollas i sidled, hela korta etiketter, diskreta knappar (träffyta ≥44 px) och tydlig skrollmarkering */
+.tools{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;overscroll-behavior-x:contain;flex-wrap:nowrap}
+.tools::-webkit-scrollbar{display:none}
+html .tools button,html.bs-s .tools button,html.bs-l .tools button{flex:1 0 auto;min-width:56px;min-height:44px;padding:2px 6px;scroll-snap-align:start;overflow:visible;text-overflow:clip;white-space:nowrap;letter-spacing:0}
+.tools button span{white-space:nowrap}
+.tools.ovr{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),rgba(0,0,0,.15));mask-image:linear-gradient(to right,#000 calc(100% - 34px),rgba(0,0,0,.15))}
+.tools.ovl{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 34px),rgba(0,0,0,.15));mask-image:linear-gradient(to left,#000 calc(100% - 34px),rgba(0,0,0,.15))}
+.tools.ovl.ovr{-webkit-mask-image:linear-gradient(to right,rgba(0,0,0,.15),#000 34px,#000 calc(100% - 34px),rgba(0,0,0,.15));mask-image:linear-gradient(to right,rgba(0,0,0,.15),#000 34px,#000 calc(100% - 34px),rgba(0,0,0,.15))}
+.toolsind{display:none;justify-content:center;gap:4px;height:4px;margin:0 0 2px;pointer-events:none}.toolsind.on{display:flex}.toolsind i{display:block;height:3px;border-radius:2px;background:var(--muted);opacity:.35}.toolsind i.cur{opacity:.9;background:var(--accent)}
+html.bs-s .tools button{font-size:10px;gap:0}html.bs-s .tools button svg{width:17px;height:17px}html.bs-s .tools button{min-width:48px;padding:1px 4px}
+html.bs-xs .tools button{font-size:9.5px!important;gap:0;min-width:44px!important;padding:0 3px}html.bs-xs .tools button svg{width:15px;height:15px}
+@media (orientation:landscape) and (max-height:500px){ html.bs-s .tools button,html .tools button{min-height:44px;min-width:44px} }
 </style>
 </head>
 <body>
@@ -4658,7 +4674,7 @@ function openHelp() {
   function shut() { lay.remove(); document.removeEventListener('keydown', onKey, true); }
   function onKey(e) { if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); e.stopPropagation(); shut(); } }
   lay.append(el('div', { class: 'cdlg-box helpbox' }, [el('h3', { text: 'Kortkommandon' }), tb, el('p', { class: 'info', text: 'Batchredigera: ← → bläddrar i den stora förhandsvisningen. Exportera alla (N) laddar ner en ZIP med alla valda bilder i full upplösning.' }),
-      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v20: typsnitten Russo One, Atomic Age, Racing Sans One, Faster One, Black Ops One och Sacramento, knappen K för kursiv stil under Text (bild och film). Arial, Georgia, Times New Roman, Trebuchet, Avenir Next, Didot och American Typewriter är borttagna – gamla texter får närmast liknande typsnitt. Nytt i v19: Autonivåer sätter svart- och vitpunkt per färgkanal som i Photoshop/GIMP (ren linjär sträckning, ingen extra uppljusning). Nytt i v18: Rensa → Laga – tryck en gång på en fläck så döljs den sömlöst. Rensa → Klona → Välj källa – tryck där du vill kopiera ifrån (dra för att justera), växla till Måla och måla. Slowmotion i Film → Klipp – välj 0,5×, 0,25× eller 0,125× och markera avsnittet med Börja här/Sluta här. Filmer med 120/240 bilder/s (iPhone Slo-mo) ger äkta slowmotion; annars blandas mellanbilder fram för jämn rörelse. Ljudet under avsnittet blir tyst eller långsamt. Logga (bild och film) – lägg in en eller flera logotyper (PNG, JPG, HEIC, SVG), dra med fingret, nyp för storlek och vinkel, och ställ synlighet. Logotyperna följer med i exporten. Sudda nummerskyltar (under Logga) hittar och suddar skyltar med ett tryck, helt i telefonen; dra egna rutor för missade skyltar.' }), el('p', { class: 'info', text: 'Nytt i v17: Klona i Rensa – välj Klona och måla över en defekt, så kopieras struktur och linjer från ett närliggande område i stället för att bara fyllas med liknande färg. Håll fingret still en halv sekund (eller Alt-klicka med musen) för att själv välja var det ska kopieras från. Avståndet räknas från punkten där du börjar måla: den blå ringen följer penseln på samma avstånd. Auto för att låta appen välja igen. Ångra fungerar som förut.' }), el('p', { class: 'info', text: 'Nytt i v16: Rensa – tryck på Rensa och måla med fingret eller musen över det du vill ta bort, så fylls det med omgivningen. Ändra penselstorlek, Ångra och Klar. Kristallklar ger LED-ljus och blanka ytor ett klarare, mer intensivt vitt med bevarad kontrast. Filmreglaget är mindre, halvgenomskinligt och tonas ut under uppspelning, och filmen kan visas i helskärm.' }), el('p', { class: 'info', text: 'Nytt i v15: Filmen exporteras bild för bild som MP4 (H.264 + AAC) med exakt 30 eller 60 bilder/s – inga tappade bilder och ljudet i takt. Stabilisering (Av/Lätt/Stark) och Förbättra film (mindre brus och kompressionsrutor, lite skarpare, jämn exponering – ingen generativ AI) under Film → Justera eller Exportera. Lämnar du appen pausas exporten och fortsätter sedan. Testa filmstöd på enheten finns under Exportera. Kristallklar slår nu på Autonivåer automatiskt (av igen med ✕ eller när du byter stil).' }), el('p', { class: 'info', text: 'Nytt i v14: Exportformat JPEG eller PNG (WebP borttaget). Rotera 90° och Räta upp (±45°, automatisk beskärning) under Exportera → Beskärning. Tips om hemskärmen på startsidan. Knappstorlek Liten ser ännu mindre ut (tryckytan är fortfarande 44 px). Större bildyta i alla lägen – knapparna ligger ovanpå bilden. Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
+      el('p', { class: 'info', text: 'Favoritfilter: spara under Justera, använd med knappen Favoritfilter under Stilar (eller i Batchredigera). Nya bilder öppnas alltid neutralt.' }), el('p', { class: 'info', text: 'Nytt i v20: typsnitten Russo One, Atomic Age, Racing Sans One, Faster One, Black Ops One och Sacramento, knappen K för kursiv stil under Text (bild och film). Arial, Georgia, Times New Roman, Trebuchet, Avenir Next, Didot och American Typewriter är borttagna – gamla texter får närmast liknande typsnitt. Nytt i v19: Autonivåer sätter svart- och vitpunkt per färgkanal som i Photoshop/GIMP (ren linjär sträckning, ingen extra uppljusning). Nytt i v18: Rensa → Laga – tryck en gång på en fläck så döljs den sömlöst. Rensa → Klona → Välj källa – tryck där du vill kopiera ifrån (dra för att justera), växla till Måla och måla. Slowmotion i Film → Klipp – välj 0,5×, 0,25× eller 0,125× och markera avsnittet med Börja här/Sluta här. Filmer med 120/240 bilder/s (iPhone Slo-mo) ger äkta slowmotion; annars blandas mellanbilder fram för jämn rörelse. Ljudet under avsnittet blir tyst eller långsamt. Logga (bild och film) – lägg in en eller flera logotyper (PNG, JPG, HEIC, SVG), dra med fingret, nyp för storlek och vinkel, och ställ synlighet. Logotyperna följer med i exporten. Sudda nummerskyltar (under Logga) hittar och suddar skyltar med ett tryck, helt i telefonen; dra egna rutor för missade skyltar. Dela filmen med Dela här (Klipp/Tidslinje), ta bort delar och Ångra; slowmotion per del i Tidslinje; verktygsmenyn skrollar i sidled och har storleken XS.' }), el('p', { class: 'info', text: 'Nytt i v17: Klona i Rensa – välj Klona och måla över en defekt, så kopieras struktur och linjer från ett närliggande område i stället för att bara fyllas med liknande färg. Håll fingret still en halv sekund (eller Alt-klicka med musen) för att själv välja var det ska kopieras från. Avståndet räknas från punkten där du börjar måla: den blå ringen följer penseln på samma avstånd. Auto för att låta appen välja igen. Ångra fungerar som förut.' }), el('p', { class: 'info', text: 'Nytt i v16: Rensa – tryck på Rensa och måla med fingret eller musen över det du vill ta bort, så fylls det med omgivningen. Ändra penselstorlek, Ångra och Klar. Kristallklar ger LED-ljus och blanka ytor ett klarare, mer intensivt vitt med bevarad kontrast. Filmreglaget är mindre, halvgenomskinligt och tonas ut under uppspelning, och filmen kan visas i helskärm.' }), el('p', { class: 'info', text: 'Nytt i v15: Filmen exporteras bild för bild som MP4 (H.264 + AAC) med exakt 30 eller 60 bilder/s – inga tappade bilder och ljudet i takt. Stabilisering (Av/Lätt/Stark) och Förbättra film (mindre brus och kompressionsrutor, lite skarpare, jämn exponering – ingen generativ AI) under Film → Justera eller Exportera. Lämnar du appen pausas exporten och fortsätter sedan. Testa filmstöd på enheten finns under Exportera. Kristallklar slår nu på Autonivåer automatiskt (av igen med ✕ eller när du byter stil).' }), el('p', { class: 'info', text: 'Nytt i v14: Exportformat JPEG eller PNG (WebP borttaget). Rotera 90° och Räta upp (±45°, automatisk beskärning) under Exportera → Beskärning. Tips om hemskärmen på startsidan. Knappstorlek Liten ser ännu mindre ut (tryckytan är fortfarande 44 px). Större bildyta i alla lägen – knapparna ligger ovanpå bilden. Kristallklar har tagit över AI-förbättringen – tydligare HDR, ljusare skuggor, varmare ton, moln som aldrig fräts ut och automatisk rensning av JPEG-artefakter och brus. Före/Efter: tryck för att växla, håll för att titta. Tillbaka-knapp i helskärm på liggande telefon. Fri beskärning (Fri, 1:1, 4:5, 3:4, 9:16, 3:2, 4:3, 16:9 – oavsett om bilden är stående eller liggande) under Exportera. Justera-reglagen följer fingret, och ”Bearbetar…” visas om bilden behöver räknas om. Vattenmärke som standard: Freestyle Swede i gråskala, 10 % storlek och 80 % synlighet. Mindre knappar i menyerna och i beskärningen. Stabil zoom och panorering.' }), el('p', { class: 'info', text: 'Nytt i v13: AI-förbättring (i v14 en del av Kristallklar), Ljusstyrka, Tidslinje med flera klipp, mjuka övergångar och musikspår, mix film ↔ musik, brus- och utjämningsfilter för film, vattenmärke, textanimationer, Pixabay Music, ljust/mörkt läge (knappen till höger om Helskärm) och knappstorlek (Storlek i verktygsraden).' }), el('p', { class: 'info', text: 'Text: dra texten för att flytta den, scrolla eller nyp på texten för att zooma.' }), el('p', { class: 'info', text: 'Typsnitt: ”Comic Script” är Patrick Hand och ”Hopper Script” är Pacifico, båda SIL Open Font License 1.1 (se Licenser).' }), el('div', { class: 'cdlg-btns' }, [el('a', { class: 'btn', href: 'nyheter.html', target: '_blank', rel: 'noopener', text: 'Nyheter' }), el('a', { class: 'btn', href: 'licenser.html', target: '_blank', rel: 'noopener', text: 'Licenser' }), el('button', { type: 'button', class: 'btn primary', text: 'Stäng', onclick: shut })])]));
   lay.addEventListener('click', function (e) { if (e.target === lay) shut(); });
   document.addEventListener('keydown', onKey, true); document.body.append(lay); var fb = lay.querySelector('.btn.primary'); if (fb) { try { fb.focus({ preventScroll: true }); } catch (e) { fb.focus(); } } var hb0 = lay.querySelector(".helpbox"); if (hb0) hb0.scrollTop = 0; // v15 L-H1: hjälpen öppnas överst
 }
@@ -5096,14 +5112,14 @@ function applyTheme(t) {
 })();
 /* --- p5: knappstorlek i tre lägen (liten/mellan/stor). Förslag: telefon = liten, iPad = mellan, dator = stor.
    Alltid synlig knapp längst ner i verktygsraden (överst i panelen på stor skärm). --- */
-var BS_KEY = 'klarbild.knappstorlek.v1', BS = [['s', 'Liten', 'S'], ['m', 'Mellan', 'M'], ['l', 'Stor', 'L']];
+var BS_KEY = 'klarbild.knappstorlek.v1', BS = [['xs', 'Minst', 'XS'], ['s', 'Liten', 'S'], ['m', 'Mellan', 'M'], ['l', 'Stor', 'L']]; // v20: XS = minsta (träffyta fortfarande ≥44 px)
 function bsSuggest() {
   var fine = !!(window.matchMedia && matchMedia('(pointer: fine)').matches), sm = Math.min(screen.width || innerWidth, screen.height || innerHeight);
   return fine && (navigator.maxTouchPoints || 0) < 2 ? 'l' : sm < 600 ? 's' : 'm';
 }
-function bsCur() { var v = null; try { v = localStorage.getItem(BS_KEY); } catch (e) {} return v === 's' || v === 'm' || v === 'l' ? v : bsSuggest(); }
+function bsCur() { var v = null; try { v = localStorage.getItem(BS_KEY); } catch (e) {} return v === 'xs' || v === 's' || v === 'm' || v === 'l' ? v : bsSuggest(); }
 function applyBS(v) {
-  var h = document.documentElement; h.classList.remove('bs-s', 'bs-m', 'bs-l'); h.classList.add('bs-' + v);
+  var h = document.documentElement; h.classList.remove('bs-xs', 'bs-s', 'bs-m', 'bs-l'); h.classList.add('bs-' + v); if (v === 'xs') h.classList.add('bs-s');
   var it = BS.filter(function (x) { return x[0] === v; })[0];
   [].forEach.call(document.querySelectorAll('.bsbtn'), function (b) { b.querySelector('b').textContent = it[2]; b.querySelector('span').textContent = 'Storlek';
     b.setAttribute('aria-label', 'Knappstorlek: ' + it[1] + ' (tryck för att byta)'); });
@@ -5111,7 +5127,7 @@ function applyBS(v) {
 (function () {
   ['#photoTools', '#videoTools'].forEach(function (n) {
     $(n).append(el('button', { type: 'button', class: 'bsbtn', html: '<b>M</b><span>Storlek</span>', onclick: function () {
-      var c = bsCur(), i = BS.findIndex(function (x) { return x[0] === c; }), nx = BS[(i + 1) % 3];
+      var c = bsCur(), i = BS.findIndex(function (x) { return x[0] === c; }), nx = BS[(i + 1) % BS.length];
       try { localStorage.setItem(BS_KEY, nx[0]); } catch (e) {} applyBS(nx[0]);
       toast('Knappstorlek: ' + nx[1] + (nx[0] === bsSuggest() ? ' (förslag för den här enheten)' : ''));
       if (typeof refit === 'function') requestAnimationFrame(refit);
@@ -6978,7 +6994,10 @@ function kbCloneCore(rgba, mask, w, h, off) {
   function sp(k) { var xx = (k % w) + dx0, yy = ((k / w) | 0) + dy0; if (xx < 0 || yy < 0 || xx >= w || yy >= h) return -1; var q = yy * w + xx; return mask[q] ? -1 : q * 4; }
   // läkning: D = mål − källa på ringen, sprid in i masken (fyll utifrån + Jacobi-utjämning)
   var D = new Float32Array(n * 3), K = new Uint8Array(n), left = 0;
-  for (i = 0; i < n; i++) if (ring[i]) { var s1 = sp(i); if (s1 < 0) continue; D[i * 3] = rgba[i * 4] - rgba[s1]; D[i * 3 + 1] = rgba[i * 4 + 1] - rgba[s1 + 1]; D[i * 3 + 2] = rgba[i * 4 + 2] - rgba[s1 + 2]; K[i] = 1; } else if (mask[i]) left++;
+  for (i = 0; i < n; i++) if (ring[i]) { var s1 = sp(i); if (s1 < 0) continue; D[i * 3] = rgba[i * 4] - rgba[s1]; D[i * 3 + 1] = rgba[i * 4 + 1] - rgba[s1 + 1]; D[i * 3 + 2] = rgba[i * 4 + 2] - rgba[s1 + 2];
+    // v20 F1: stor skillnad på ringen = annan struktur (t.ex. ränder i fel fas), inte färgskift – sprid den inte (gav mörk utsmetning vid kanten)
+    var dm = Math.abs(D[i * 3]) + Math.abs(D[i * 3 + 1]) + Math.abs(D[i * 3 + 2]); if (dm > 60) { var kf = Math.max(0, 1 - (dm - 60) / 60); D[i * 3] *= kf; D[i * 3 + 1] *= kf; D[i * 3 + 2] *= kf; }
+    K[i] = 1; } else if (mask[i]) left++;
   var guard = 0; while (left > 0 && guard++ < w + h) { var nk = K.slice(), ch = 0;
     for (y = by0; y <= by1; y++) for (x = bx0; x <= bx1; x++) { i = y * w + x; if (!mask[i] || K[i]) continue; var a0 = 0, a1 = 0, a2 = 0, nn = 0, kk;
       kk = i - 1; if (x > 0 && K[kk]) { a0 += D[kk * 3]; a1 += D[kk * 3 + 1]; a2 += D[kk * 3 + 2]; nn++; } kk = i + 1; if (x < w - 1 && K[kk]) { a0 += D[kk * 3]; a1 += D[kk * 3 + 1]; a2 += D[kk * 3 + 2]; nn++; }
@@ -7031,7 +7050,7 @@ function kbHealCore(rgba, mask, w, h) {
   var D = new Float32Array(n * 3), M2 = new Uint8Array(n);
   for (y = my0; y <= my1; y++) for (x = mx0; x <= mx1; x++) { i = y * w + x; if (!mask[i]) continue; M2[i] = 1; }
   for (y = Math.max(0, my0 - 1); y <= Math.min(h - 1, my1 + 1); y++) for (x = Math.max(0, mx0 - 1); x <= Math.min(w - 1, mx1 + 1); x++) { i = y * w + x; if (mask[i]) continue; var nbm = -1; [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].forEach(function (c) { if (c[0] >= 0 && c[1] >= 0 && c[0] < w && c[1] < h && mask[c[1] * w + c[0]]) nbm = c[1] * w + c[0]; }); if (nbm < 0) continue;
-    var sx2 = nbm % w + ox[nbm] + (x - nbm % w), sy2 = ((nbm / w) | 0) + oy[nbm] + (y - ((nbm / w) | 0)); if (sx2 < 0 || sy2 < 0 || sx2 >= w || sy2 >= h) continue; var q2 = (sy2 * w + sx2) * 4; D[i * 3] = rgba[i * 4] - rgba[q2]; D[i * 3 + 1] = rgba[i * 4 + 1] - rgba[q2 + 1]; D[i * 3 + 2] = rgba[i * 4 + 2] - rgba[q2 + 2]; M2[i] = 2; }
+    var sx2 = nbm % w + ox[nbm] + (x - nbm % w), sy2 = ((nbm / w) | 0) + oy[nbm] + (y - ((nbm / w) | 0)); if (sx2 < 0 || sy2 < 0 || sx2 >= w || sy2 >= h) continue; var q2 = (sy2 * w + sx2) * 4; D[i * 3] = rgba[i * 4] - rgba[q2]; D[i * 3 + 1] = rgba[i * 4 + 1] - rgba[q2 + 1]; D[i * 3 + 2] = rgba[i * 4 + 2] - rgba[q2 + 2]; if (Math.abs(D[i * 3]) + Math.abs(D[i * 3 + 1]) + Math.abs(D[i * 3 + 2]) > 60) { D[i * 3] = D[i * 3 + 1] = D[i * 3 + 2] = 0; continue; } M2[i] = 2; } // v20 N6: kantpunkt där källans struktur inte stämmer (fog mot tegel) får inte styra membranet
   // v18b N6: startvärde inifrån kanten (lökfyllning) så att membranet konvergerar även mitt i korsande drag (annars rest där sömmar korsar)
   var Kd = new Uint8Array(n), og = 0; for (i = 0; i < n; i++) if (M2[i] === 2) Kd[i] = 1;
   while (og++ < w + h) { var nw = [];
@@ -7114,9 +7133,18 @@ function rtUp(e) { if (!(e.pointerId in RT.ptr)) return; clearTimeout(RT.lp); de
 /* v18 Laga: tryck på en fläck → masken växer från tryckpunkten över pixlar som avviker från omgivningens färg */
 function rtHealMask(pt) { // söker först nära trycket och växer (×1,6) upp till penselns radie tills fläcken ligger helt innanför
   var Rmax = Math.max(3, RT.size / RT.s / 2), M = null, R = Math.min(Rmax, 6), w = P.prev.w, h = P.prev.h, cx = Math.round(pt[0]), cy = Math.round(pt[1]);
+  if (!rtHasSpot(pt, Rmax)) { toast('Ingen fläck hittades här – måla över den om du vill laga ändå.'); return false; } // v20 N7: alla färger under fingret finns redan runt omkring (ren yta, tegel, fog)
   var Rl = 0; for (;;) { M = rtHealTry(pt, R); if (M === false && !Rl) Rl = R; if (M || R >= Rmax) break; R = Math.min(Rmax, R * 1.6); }
   if (!M && !Rl) { toast('Ingen fläck hittades här – måla över den om du vill laga ändå.'); return false; } // v18b N7: tryck på rent område skapar ingen lapp
   rtHealDraw(M, w, h, cx, cy, Rl ? Math.max(3, Rl * 0.9) : Rmax); // fläcken flyter ihop med en linje e.d.: lagom stor cirkel där den hittades
+}
+function rtHasSpot(pt, R) {
+  var d = P.prev.data.data, w = P.prev.w, h = P.prev.h, cx = Math.round(pt[0]), cy = Math.round(pt[1]), R2 = R * 1.8, x, y, i, ring = [], inn = [];
+  for (y = Math.max(0, cy - R2 | 0); y <= Math.min(h - 1, cy + R2); y++) for (x = Math.max(0, cx - R2 | 0); x <= Math.min(w - 1, cx + R2); x++) { var q = Math.hypot(x - cx, y - cy); i = (y * w + x) * 4; if (q > R * 1.15 && q <= R2) ring.push(i); else if (q <= R) inn.push(i); }
+  if (ring.length < 20 || !inn.length) return true; var st = Math.max(1, Math.floor(ring.length / 500)), rs = []; for (i = 0; i < ring.length; i += st) rs.push(ring[i]);
+  var odd = 0, need = Math.max(3, inn.length * 0.01);
+  for (var k = 0; k < inn.length; k++) { var j = inn[k], best = 1e9; for (var m = 0; m < rs.length && best > 24; m++) { var r = rs[m], e = Math.abs(d[j] - d[r]) + Math.abs(d[j + 1] - d[r + 1]) + Math.abs(d[j + 2] - d[r + 2]); if (e < best) best = e; } if (best > 24 && ++odd >= need) return true; }
+  return false;
 }
 function rtHealTry(pt, R) {
   var d = P.prev.data.data, w = P.prev.w, h = P.prev.h, cx = Math.round(pt[0]), cy = Math.round(pt[1]), R2 = R * 1.7, i, x, y;
@@ -7152,6 +7180,7 @@ function rtApply() {
   var nx0 = Math.min.apply(0, cs.map(function (c) { return c[0]; })), nx1 = Math.max.apply(0, cs.map(function (c) { return c[0]; })), ny0 = Math.min.apply(0, cs.map(function (c) { return c[1]; })), ny1 = Math.max.apply(0, cs.map(function (c) { return c[1]; }));
   var heal = RT.mode === 'heal', clone = RT.mode === 'clone' || heal, offN = null;
   if (RT.mode === 'clone' && RT.offP) { var a0 = rtToNat(G, 0, 0), a1 = rtToNat(G, RT.offP[0], RT.offP[1]); offN = [a1[0] - a0[0], a1[1] - a0[1]]; }
+  if (offN && (nx0 + offN[0] < -2 || ny0 + offN[1] < -2 || nx1 + offN[0] > G.W + 2 || ny1 + offN[1] > G.H + 2)) { RT.mx.clearRect(0, 0, pw, ph); rtDraw(); toast('Källan ligger utanför bilden – håll fingret still på en plats inne i bilden och måla igen.'); return; } // v20 N2: ingen suddig lapp från kanten
   var pad = offN ? 24 : heal ? Math.max(40, (nx1 - nx0 + ny1 - ny0) * 1.3) : Math.max(24, (nx1 - nx0 + ny1 - ny0) * (clone ? 0.9 : 0.6)); // omgivning att hämta struktur ur
   var ux0 = offN ? Math.min(nx0, nx0 + offN[0]) : nx0, ux1 = offN ? Math.max(nx1, nx1 + offN[0]) : nx1, uy0 = offN ? Math.min(ny0, ny0 + offN[1]) : ny0, uy1 = offN ? Math.max(ny1, ny1 + offN[1]) : ny1;
   var rx = Math.max(0, Math.floor(ux0 - pad)), ry = Math.max(0, Math.floor(uy0 - pad)), rw = Math.min(G.W, Math.ceil(ux1 + pad)) - rx, rh = Math.min(G.H, Math.ceil(uy1 + pad)) - ry;
@@ -7524,10 +7553,10 @@ function slowPreviewRate(reset) {
 videoEl.addEventListener('loadedmetadata', function () { V.slow.on = false; V.slow.a = 0; V.slow.b = V.dur || 0; SLOW_UNDO.length = 0; V.sfps = null; slowUi(); });
 /* ---------- gränssnitt i Klipp ---------- */
 var slowEls = {};
-function slowSnap() { return JSON.stringify(V.slow); }
+function slowSnap() { return JSON.stringify(slowTgt()); }
 function slowPush() { var s = slowSnap(); if (SLOW_UNDO[SLOW_UNDO.length - 1] !== s) SLOW_UNDO.push(s); if (SLOW_UNDO.length > 50) SLOW_UNDO.shift(); slowUi(); }
-function slowUndo() { var s = SLOW_UNDO.pop(); if (!s) return; Object.assign(V.slow, JSON.parse(s)); slowUi(); }
-function slowSet(k, v) { slowPush(); V.slow[k] = v; if (k === 'f' && v === 1) V.slow.on = false; else if (k === 'f') { V.slow.on = true; if (V.slow.b - V.slow.a < 0.05) { V.slow.a = V.start; V.slow.b = V.end; } } slowUi(); if (V.ready) slowFpsProbe(); }
+function slowUndo() { var s = SLOW_UNDO.pop(); if (!s) return; Object.assign(slowTgt(), JSON.parse(s)); slowUi(); }
+function slowSet(k, v) { slowPush(); slowTgt()[k] = v; if (k === 'f' && v === 1) slowTgt().on = false; else if (k === 'f') { slowTgt().on = true; var rg = slowRange(); if (slowTgt().b - slowTgt().a < 0.05 || slowTgt().a >= rg[1] || slowTgt().b <= rg[0]) { slowTgt().a = rg[0]; slowTgt().b = rg[1]; } } slowUi(); if (V.ready) slowFpsProbe(); }
 function slowFpsProbe() {
   if (V.sfps || V._sfpsBusy || typeof MB === 'undefined') return; var f0 = null; try { f0 = wcPlan().clips[0].file; } catch (e) {} if (!f0) return; V._sfpsBusy = true;
   try { var inp = new MB.Input({ source: new MB.BlobSource(f0), formats: MB.ALL_FORMATS });
@@ -7535,14 +7564,14 @@ function slowFpsProbe() {
 }
 function slowFmt(t) { var m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1).replace('.', ','); }
 function slowUi() {
-  if (!slowEls.box) return; var S = V.slow, tl = typeof TL !== 'undefined' && TL.on;
+  if (!slowEls.box) return; var S = slowTgt(), tl = typeof TL !== 'undefined' && TL.on, tc = tl ? (TL.clips[TL.sel] || TL.clips[0]) : null;
   [].forEach.call(slowEls.spd.children, function (b) { var on = +b.getAttribute('data-v') === (S.on ? S.f : 1); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
   [].forEach.call(slowEls.snd.children, function (b) { var on = b.getAttribute('data-v') === S.snd; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
   slowEls.more.classList.toggle('hidden', !S.on);
-  if (V.ready) { slowEls.sa.setRange(0, V.dur, 0.1); slowEls.sb.setRange(0, V.dur, 0.1); slowEls.sa.set(S.a); slowEls.sb.set(S.b); }
+  if (V.ready) { var dm = tl ? (tc.dur || tc.out) : V.dur; slowEls.sa.setRange(0, dm, 0.1); slowEls.sb.setRange(0, dm, 0.1); slowEls.sa.set(S.a); slowEls.sb.set(S.b); }
   slowEls.undo.disabled = !SLOW_UNDO.length;
   var e = slowEff(), t = '';
-  if (tl) t = 'Slowmotion gäller en enskild film, inte tidslinjen med flera klipp.';
+  if (tl) { var ce = clipSlowEff(tc); t = !S.on ? 'Del ' + (TL.sel + 1) + ': normal hastighet. Välj hastighet för slowmotion på den här delen – dela klippet för fler avsnitt.' : !ce ? 'Avsnittet ligger utanför del ' + (TL.sel + 1) + ' – flytta Från/Till.' : 'Del ' + (TL.sel + 1) + ': ' + slowFmt(ce.a - tc.inn) + '–' + slowFmt(ce.b - tc.inn) + ' spelas i ' + String(ce.f).replace('.', ',') + '×. Delen blir ' + fmtTime(tlLen(tc)) + ' lång.' + (ce.snd === 'mute' ? ' Ljudet är tyst under avsnittet.' : ' Ljudet spelas långsamt under avsnittet.'); }
   else if (!V.ready) t = 'Välj en film först.';
   else if (!S.on) t = 'Av: filmen spelas i normal hastighet.';
   else if (!e) t = 'Avsnittet ligger utanför klippet – flytta Start/Slut för slowmotion.';
@@ -7559,13 +7588,13 @@ function slowUi() {
   slowEls.spd = seg('slowSpd', 'Hastighet', [[1, 'Av'], [0.5, '0,5×'], [0.25, '0,25×'], [0.125, '0,125×']], function (v) { slowSet('f', +v); });
   slowEls.snd = seg('slowSnd', 'Ljud under slowmotion', [['mute', 'Tyst'], ['slow', 'Långsamt']], function (v) { slowSet('snd', v); });
   var dragging = false;
-  slowEls.sa = makeSlider({ label: 'Slowmo från', min: 0, max: 1, step: 0.1, def: 0, noMod: true, fmt: fmtTime, onInput: function (v) { if (!dragging) { slowPush(); dragging = true; } V.slow.a = Math.min(v, V.slow.b - 0.1); slowUi(); if (!V.playing) seekLatest(V.slow.a); }, onChange: function () { dragging = false; } });
-  slowEls.sb = makeSlider({ label: 'Slowmo till', min: 0, max: 1, step: 0.1, def: 0, noMod: true, fmt: fmtTime, onInput: function (v) { if (!dragging) { slowPush(); dragging = true; } V.slow.b = Math.max(v, V.slow.a + 0.1); slowUi(); if (!V.playing) seekLatest(Math.max(V.slow.a, V.slow.b - 0.05)); }, onChange: function () { dragging = false; } });
-  function here(k) { if (!V.ready) return; slowPush(); var t = videoEl.currentTime || 0; if (k === 'a') { V.slow.a = t; if (V.slow.b <= t + 0.1) V.slow.b = Math.min(V.end, t + 1); } else { V.slow.b = t; if (V.slow.a >= t - 0.1) V.slow.a = Math.max(V.start, t - 1); } slowUi(); }
+  slowEls.sa = makeSlider({ label: 'Slowmo från', min: 0, max: 1, step: 0.1, def: 0, noMod: true, fmt: fmtTime, onInput: function (v) { if (!dragging) { slowPush(); dragging = true; } slowTgt().a = Math.min(v, slowTgt().b - 0.1); slowUi(); if (!V.playing) slowSeekSrc(slowTgt().a); }, onChange: function () { dragging = false; delaRefresh(); } });
+  slowEls.sb = makeSlider({ label: 'Slowmo till', min: 0, max: 1, step: 0.1, def: 0, noMod: true, fmt: fmtTime, onInput: function (v) { if (!dragging) { slowPush(); dragging = true; } slowTgt().b = Math.max(v, slowTgt().a + 0.1); slowUi(); if (!V.playing) slowSeekSrc(Math.max(slowTgt().a, slowTgt().b - 0.05)); }, onChange: function () { dragging = false; delaRefresh(); } });
+  function here(k) { if (!V.ready) return; slowPush(); var t = slowHereT(), rg = slowRange(); if (k === 'a') { slowTgt().a = t; if (slowTgt().b <= t + 0.1) slowTgt().b = Math.min(rg[1], t + 1); } else { slowTgt().b = t; if (slowTgt().a >= t - 0.1) slowTgt().a = Math.max(rg[0], t - 1); } slowUi(); }
   slowEls.undo = el('button', { type: 'button', class: 'btn sm', id: 'slowUndo', text: 'Ångra', onclick: slowUndo });
   slowEls.more = el('div', { id: 'slowMore', class: 'hidden' }, [slowEls.sa.el, slowEls.sb.el,
     el('div', { class: 'btnrow slowrow' }, [el('button', { type: 'button', class: 'btn sm', id: 'slowHereA', text: 'Börja här', onclick: function () { here('a'); } }), el('button', { type: 'button', class: 'btn sm', id: 'slowHereB', text: 'Sluta här', onclick: function () { here('b'); } }),
-      el('button', { type: 'button', class: 'btn sm', id: 'slowAll', text: 'Hela klippet', onclick: function () { slowPush(); V.slow.a = V.start; V.slow.b = V.end; slowUi(); } })]),
+      el('button', { type: 'button', class: 'btn sm', id: 'slowAll', text: 'Hela klippet', onclick: function () { slowPush(); var rg = slowRange(); slowTgt().a = rg[0]; slowTgt().b = rg[1]; slowUi(); delaRefresh(); } })]),
     el('div', { class: 'row vresrow' }, [el('span', { class: 'lbl', text: 'Filmens ljud under slowmotion' })]), slowEls.snd]);
   slowEls.info = el('p', { class: 'info', id: 'slowInfo' });
   slowEls.box = el('div', { class: 'card slowcard', id: 'slowCard', style: 'margin-top:14px' }, [el('div', { class: 'row slowhead' }, [el('b', { text: 'Slowmotion' }), slowEls.undo]), slowEls.spd, slowEls.more, slowEls.info]);
@@ -7691,6 +7720,148 @@ var AL_BASE = computeAutoLevels;
       if (P._alN !== undefined) return P._alN ? JSON.parse(JSON.stringify(P._alN)) : null; }
     return oC(d, n);
   };
+})();
+
+/* =========================================================================
+   v20: DELA KLIPP + SLOWMOTION I TIDSLINJEN
+   – Dela vid uppspelningshuvudet (flera gånger): klippet blir två delar av samma fil (egen <video>, samma justeringar).
+     Delar av samma klipp möts med hårt klipp (ingen övergångstoning) så att filmen fortsätter exakt.
+   – Ta bort vald del, Ångra (hela tidslinjens tillstånd inkl. slowmotion).
+   – Slowmotion per klipp/del i tidslinjen: ett avsnitt [a, b] i källtid per del → flera avsnitt genom att dela.
+   Exporten (wcPlan → wcLocal/slowAddTime/slowAudioParts) räknar varje del för sig, så bild och ljud följer samma tidskarta.
+   ========================================================================= */
+function clipSlowEff(c) { var S = c && c.slow; if (!S || !S.on) return null; var a = Math.max(c.inn, Math.min(S.a, S.b)), b = Math.min(c.out, Math.max(S.a, S.b)); if (b - a < 0.05) return null; return { a: a, b: b, f: S.f, snd: S.snd || 'mute' }; }
+function clipLocal(c, u) { var e = clipSlowEff(c); if (!e) return c.inn + u; var A = e.a - c.inn, D = (e.b - e.a) / e.f; return u < A ? c.inn + u : u < A + D ? e.a + (u - A) * e.f : e.b + (u - A - D); }
+function clipOutT(c, t) { var e = clipSlowEff(c), u = t - c.inn; if (!e || t <= e.a) return u; if (t < e.b) return e.a - c.inn + (t - e.a) / e.f; return u + (e.b - e.a) / e.f - (e.b - e.a); } // källtid → utdatatid i klippet
+tlLen = function (c) { var e = clipSlowEff(c), L = Math.max(0.2, c.out - c.inn); return e ? L - (e.b - e.a) + (e.b - e.a) / e.f : L; };
+function tlXb(i) { var n = TL.clips[i + 1]; return n && !n.cut ? tlX() : 0; } // övergång mellan klipp i och i+1
+tlStarts = function () { var s = [], t = 0; TL.clips.forEach(function (c, i) { var L = tlLen(c), x = Math.min(tlXb(i), L / 2); s.push(t); t += L - (i < TL.clips.length - 1 ? x : 0); }); return { s: s, total: t }; };
+tlActive = function (pos) {
+  var st = tlStarts(), out = [];
+  TL.clips.forEach(function (c, i) {
+    var s = st.s[i], L = tlLen(c); if (pos < s - 1e-4 || pos >= s + L) return;
+    var xi = i > 0 ? tlXb(i - 1) : 0, a = 1; if (xi) a = Math.min(1, (pos - s) / Math.min(xi, L / 2));
+    var xo = tlXb(i), ao = 1; if (xo) { var xe = Math.min(xo, L / 2); if (pos > s + L - xe) ao = Math.max(0, (s + L - pos) / xe); }
+    out.push({ c: c, i: i, a: a, ao: ao, local: clipLocal(c, pos - s) });
+  });
+  return out;
+};
+(function () { // exportplan: hårda klipp mellan delar + slowmotion per del
+  var _p = wcPlan;
+  wcPlan = function () { var pl = _p.apply(this, arguments); if (!pl.tl) return pl;
+    pl.clips.forEach(function (pc, i) { var tc = TL.clips[i]; if (!tc) return; var e = clipSlowEff(tc); if (e) pc.slow = e; pc.L = tlLen(tc);
+      if (tc.cut) { pc.xin = 0; if (pl.clips[i - 1]) pl.clips[i - 1].xout = 0; } });
+    var st = tlStarts(); pl.clips.forEach(function (pc, i) { pc.s = st.s[i]; }); pl.total = st.total; return pl; };
+  var _a = slowAudioParts; slowAudioParts = function (c) { var o = _a(c); if (o.length) { o[0].xin = c.xin || 0; o[o.length - 1].xout = c.xout || 0; } return o; };
+  var _s = tlSync; tlSync = function (seekOnly) { _s(seekOnly); // förhandsvisning: hastighet och ljud följer delens slowmotion
+    var act = tlActive(TL.pos); act.forEach(function (a) { var e = clipSlowEff(a.c), inS = !!(e && a.local >= e.a && a.local < e.b), r = inS ? e.f : 1, el0 = a.c.el;
+      if (Math.abs((el0.playbackRate || 1) - r) > 1e-3) { try { el0.playbackRate = r; } catch (er) {} }
+      try { el0.preservesPitch = el0.webkitPreservesPitch = !(inS && e.snd === 'slow'); } catch (er) {}
+      if (inS && e.snd === 'mute' && a.c.gain) a.c.gain.gain.value = 0; }); };
+})();
+/* ---------- Ångra ---------- */
+var DELA_UNDO = [];
+function delaSnap() { return { on: TL.on, sel: TL.sel, slow: JSON.stringify(V.slow), vs: V.start, ve: V.end, clips: TL.clips.map(function (c) { return { c: c, inn: c.inn, out: c.out, cut: !!c.cut, slow: c.slow ? JSON.stringify(c.slow) : null }; }) }; }
+function delaPush() { DELA_UNDO.push(delaSnap()); if (DELA_UNDO.length > 40) DELA_UNDO.shift(); }
+function delaUndo() {
+  var s = DELA_UNDO.pop(); if (!s) return; if (TL.playing) tlPause(); else if (V.playing) pauseVideo();
+  TL.clips = s.clips.map(function (o) { var c = o.c; c.inn = o.inn; c.out = o.out; c.cut = o.cut; c.slow = o.slow ? JSON.parse(o.slow) : null; return c; });
+  Object.assign(V.slow, JSON.parse(s.slow)); TL.sel = Math.min(s.sel, TL.clips.length - 1);
+  if (!s.on) { if (TL.on) tlDisable(); V.start = s.vs; V.end = s.ve; updateTrimInfo(); }
+  else { if (!TL.on) tlEnable(); tlApplyRange(); tlSeek(Math.min(TL.pos, V.end)); }
+  delaRefresh(); toast('Ångrat.');
+}
+/* ---------- dela ---------- */
+function delaNewEl(c) {
+  var e = document.createElement('video'); e.playsInline = true; e.setAttribute('playsinline', ''); e.setAttribute('webkit-playsinline', ''); e.preload = 'auto'; e.crossOrigin = 'anonymous'; e.muted = false;
+  e.style.cssText = 'position:fixed;left:-9999px;width:2px;height:2px;opacity:0;pointer-events:none'; document.body.append(e);
+  e.addEventListener('seeked', function () { if (TL.on && !TL.playing) tlRender(); }); e.addEventListener('loadeddata', function () { if (TL.on && !TL.playing) tlRender(); });
+  var u = URL.createObjectURL(c.file); e.src = u; e.load(); return { el: e, url: u };
+}
+function delaAt() { // dela klippet under uppspelningshuvudet
+  if (!V.ready || !TL.clips.length) { toast('Välj en film först.'); return; }
+  if (TL.playing) tlPause(); else if (V.playing) pauseVideo();
+  var single = !TL.on, i, c, t;
+  if (single) { c = TL.clips[0]; t = videoEl.currentTime || 0; if (t < V.start + 0.3 || t > V.end - 0.3) { toast('Flytta uppspelningshuvudet minst 0,3 s in i klippet för att dela.'); return; } }
+  else { var act = tlActive(TL.pos); if (!act.length) { toast('Inget klipp vid uppspelningshuvudet.'); return; } var a = act[act.length - 1]; c = a.c; i = a.i; t = a.local;
+    if (t < c.inn + 0.3 || t > c.out - 0.3) { toast('För nära klippets början eller slut – flytta minst 0,3 s in.'); return; } }
+  delaPush();
+  if (single) { V.slow.on && (TL.clips[0].slow = JSON.parse(JSON.stringify(V.slow))); tlEnable(); i = 0; c = TL.clips[0]; V.slow.on = false; }
+  var ne = delaNewEl(c), c2 = tlMakeClip(c.file, ne.el); c2.url = ne.url; c2.name = c.name; c2.dur = c.dur || V.dur; c2.vw = c.vw || c.el.videoWidth; c2.vh = c.vh || c.el.videoHeight;
+  c2.look = JSON.parse(JSON.stringify(c.look)); c2.inn = t; c2.out = c.out; c2.cut = true; c.out = t;
+  if (c.slow) { c2.slow = JSON.parse(JSON.stringify(c.slow)); } // samma avsnitt i källtid – klipps automatiskt till respektive del
+  TL.clips.splice(i + 1, 0, c2); TL.sel = i + 1; tlApplyRange(); var st = tlStarts(); TL.pos = st.s[i + 1]; tlSeek(TL.pos + 0.001);
+  delaRefresh(); toast('Klippet delat vid ' + fmtTime(t - (c.inn || 0) + 0) .replace(/^0+(?=\d)/, '') + '. Välj en del och tryck Ta bort del om du vill ta bort den.');
+}
+function delaRemove() {
+  if (!TL.on || TL.clips.length < 2) { toast('Dela klippet först – då kan du ta bort en del.'); return; }
+  var i = TL.sel, c = TL.clips[i]; if (!c) return; if (TL.playing) tlPause();
+  delaPush();
+  if (c.look === V.look) { var o = TL.clips[i ? i - 1 : 1]; tlLoadLook(o); }
+  try { c.el.pause(); } catch (e) {} // elementet behålls för Ångra
+  TL.clips.splice(i, 1); if (TL.clips[i] && TL.clips[i].cut && (!TL.clips[i - 1] || TL.clips[i - 1].file !== TL.clips[i].file || Math.abs(TL.clips[i - 1].out - TL.clips[i].inn) > 1e-3)) TL.clips[i].cut = !!(TL.clips[i - 1] && TL.clips[i - 1].file === TL.clips[i].file);
+  if (TL.clips[0]) TL.clips[0].cut = false;
+  TL.sel = Math.max(0, Math.min(i, TL.clips.length - 1)); tlApplyRange(); tlSeek(Math.min(tlStarts().s[TL.sel] + 0.001, V.end)); delaRefresh();
+  toast('Delen är borttagen. Ångra finns.');
+}
+/* tidslinjen får inte stänga av sig med en kvarvarande del som inte är huvudfilmen */
+(function () { var _d = tlDisable; tlDisable = function () { var c0 = TL.clips[0]; if (TL.on && c0 && c0.el !== videoEl) return; return _d.apply(this, arguments); }; })();
+/* ---------- markering: slowmotion och delningar på spolningslisten och i tidslinjen ---------- */
+function delaMarks() {
+  var bar = $('#vprog'); if (!bar) return; [].slice.call(bar.querySelectorAll('.vmark')).forEach(function (m) { m.remove(); });
+  var add = function (cls, l, w, tt) { bar.append(el('div', { class: 'vmark ' + cls, style: 'left:' + (l * 100).toFixed(3) + '%;' + (w != null ? 'width:' + Math.max(0.4, w * 100).toFixed(3) + '%' : ''), title: tt || '' })); };
+  if (TL.on) { var st = tlStarts(), T = Math.max(0.01, st.total);
+    TL.clips.forEach(function (c, i) { var e = clipSlowEff(c); if (e) add('vm-slow', (st.s[i] + clipOutT(c, e.a)) / T, (e.b - e.a) / e.f / T, 'Slowmotion ' + String(e.f).replace('.', ',') + '×'); if (i > 0) add(c.cut ? 'vm-cut' : 'vm-join', st.s[i] / T, null, c.cut ? 'Delning' : 'Nytt klipp'); }); }
+  else { var e2 = slowEff(), L = Math.max(0.01, V.end - V.start); if (e2) add('vm-slow', (e2.a - V.start) / L, (e2.b - e2.a) / L, 'Slowmotion'); }
+}
+function delaTlMarks() { // i tidslinjepanelens filmspår
+  var tr = $('#tlTrack'); if (!tr || !TL.on) return; var st = tlStarts(), T = Math.max(0.01, st.total);
+  TL.clips.forEach(function (c, i) { var b = tr.querySelector('.tlclip[data-i="' + i + '"]'); if (!b) return; if (c.cut) b.classList.add('cut'); var e = clipSlowEff(c);
+    if (e) { var L = tlLen(c); b.append(el('i', { class: 'tlslow', style: 'left:' + (clipOutT(c, e.a) / L * 100) + '%;width:' + ((e.b - e.a) / e.f / L * 100) + '%', title: 'Slowmotion' })); b.classList.add('hasslow'); } });
+}
+function delaRefresh() { if (TL.on) { try { tlApplyRange(); if (TL.pos > V.end) TL.pos = V.end; } catch (e) {} } try { tlUI(); } catch (e) {} try { slowUi(); } catch (e) {} delaMarks(); if (window.refreshVideoExport) try { refreshVideoExport(); } catch (e) {} }
+/* ---------- gränssnitt ---------- */
+var delaEls = {};
+function delaBar(id) {
+  return el('div', { class: 'btnrow delarow', id: id }, [
+    el('button', { type: 'button', class: 'btn sm', id: id + 'Split', html: '✂︎ Dela här', title: 'Dela klippet vid uppspelningshuvudet', onclick: delaAt }),
+    el('button', { type: 'button', class: 'btn sm', id: id + 'Del', text: 'Ta bort del', title: 'Ta bort vald del', onclick: delaRemove }),
+    el('button', { type: 'button', class: 'btn sm', id: id + 'Undo', text: 'Ångra', onclick: delaUndo })]);
+}
+(function () {
+  var tp = panes['v-trim']; if (tp) { var cd = el('div', { class: 'card delacard', id: 'delaCard', style: 'margin-top:14px' }, [el('b', { text: 'Dela filmen' }),
+    el('p', { class: 'info', style: 'margin:4px 0 8px', text: 'Spola till punkten och tryck Dela här. Delarna hamnar i Tidslinjen där du kan ta bort delar, lägga slowmotion på valfri del och flytta dem.' }), delaBar('delaT')]);
+    var sc = $('#slowCard'); if (sc) tp.insertBefore(cd, sc); else tp.append(cd); }
+  var _u = tlUI; tlUI = function () { var r = _u.apply(this, arguments);
+    if (TL.on && tlPane) { var card = $('#tlSelCard'); var bar = delaBar('delaL'); if (card) card.append(bar); else tlPane.append(bar);
+      var sc = slowEls.box; if (sc) { if (card) card.after(sc); else tlPane.append(sc); } delaTlMarks(); }
+    else { var sc2 = slowEls.box, tp2 = panes['v-trim']; if (sc2 && tp2 && sc2.parentNode !== tp2) tp2.append(sc2); }
+    var u = $('#delaLUndo'), u2 = $('#delaTUndo'); [u, u2].forEach(function (b) { if (b) b.disabled = !DELA_UNDO.length; });
+    delaMarks(); return r; };
+  var _ut = updateTrimInfo; updateTrimInfo = function () { var r = _ut.apply(this, arguments); delaMarks(); return r; };
+  videoEl.addEventListener('loadedmetadata', function () { DELA_UNDO.length = 0; setTimeout(delaMarks, 0); });
+})();
+/* slowmotion-panelen redigerar vald del när tidslinjen är på */
+function slowTgt() { if (!TL.on) return V.slow; var c = TL.clips[TL.sel] || TL.clips[0]; if (!c.slow) c.slow = { on: false, f: 0.5, a: c.inn, b: c.out, snd: 'mute' }; return c.slow; }
+function slowRange() { if (!TL.on) return [V.start, V.end]; var c = TL.clips[TL.sel] || TL.clips[0]; return [c.inn, c.out]; }
+function slowHereT() { if (!TL.on) return videoEl.currentTime || 0; var c = TL.clips[TL.sel]; var a = tlActive(TL.pos).filter(function (x) { return x.c === c; })[0]; return a ? a.local : c.inn; }
+(function () { var _s = slowSet; slowSet = function () { var r = _s.apply(this, arguments); delaRefresh(); return r; }; var _u = slowUndo; slowUndo = function () { var r = _u.apply(this, arguments); delaRefresh(); return r; }; })();
+function slowSeekSrc(t) { if (!TL.on) return seekLatest(t); var i = TL.sel, c = TL.clips[i]; if (!c) return; tlSeek(tlStarts().s[i] + Math.max(0, Math.min(tlLen(c) - 0.01, clipOutT(c, Math.max(c.inn, Math.min(c.out, t)))))); }
+/* ---------- v20: verktygsmenyn skrollar i sidled – tona kanten och visa punkter när det finns fler knappar ---------- */
+(function () {
+  function upd(n) { var ind = n._ind; var ov = n.scrollWidth - n.clientWidth > 4, l = ov && n.scrollLeft > 2, r = ov && n.scrollLeft < n.scrollWidth - n.clientWidth - 2;
+    n.classList.toggle('ovl', l); n.classList.toggle('ovr', r); n.classList.toggle('scrolls', ov);
+    if (!ind) return; ind.classList.toggle('on', ov); if (!ov) return; var pages = Math.min(6, Math.ceil(n.scrollWidth / Math.max(1, n.clientWidth))), cur = Math.round(n.scrollLeft / Math.max(1, n.scrollWidth - n.clientWidth) * (pages - 1));
+    if (ind.children.length !== pages) { ind.innerHTML = ''; for (var k = 0; k < pages; k++) ind.append(el('i', { style: 'width:' + (k === cur ? 16 : 6) + 'px' })); }
+    [].forEach.call(ind.children, function (d, k) { d.classList.toggle('cur', k === cur); d.style.width = (k === cur ? 16 : 6) + 'px'; }); }
+  ['#photoTools', '#videoTools'].forEach(function (s) { var n = $(s); if (!n) return; var ind = el('div', { class: 'toolsind', 'aria-hidden': 'true' }); n.after(ind); n._ind = ind;
+    var cs = getComputedStyle(n); ind.style.order = cs.order;
+    n.addEventListener('scroll', function () { upd(n); }, { passive: true });
+    var nudged = false; function check() { upd(n); ind.style.order = getComputedStyle(n).order; if (!nudged && n.classList.contains('scrolls') && n.offsetParent && n.scrollLeft < 2) { nudged = true; try { n.scrollTo({ left: 36, behavior: 'smooth' }); setTimeout(function () { n.scrollTo({ left: 0, behavior: 'smooth' }); }, 450); } catch (e) {} } }
+    if (window.ResizeObserver) new ResizeObserver(check).observe(n); addEventListener('resize', check); setTimeout(check, 300);
+    var on = n.querySelector('button.on'); n.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button'); if (b && b.scrollIntoView) try { b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); } catch (er) {} });
+  });
+  window.toolsScrollUpd = function () { ['#photoTools', '#videoTools'].forEach(function (s) { var n = $(s); if (n) upd(n); }); };
 })();
 
 </script>
