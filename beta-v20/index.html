@@ -7133,11 +7133,14 @@ function rtUp(e) { if (!(e.pointerId in RT.ptr)) return; clearTimeout(RT.lp); de
 /* v18 Laga: tryck på en fläck → masken växer från tryckpunkten över pixlar som avviker från omgivningens färg */
 function rtHealMask(pt) { // söker först nära trycket och växer (×1,6) upp till penselns radie tills fläcken ligger helt innanför
   var Rmax = Math.max(3, RT.size / RT.s / 2), M = null, R = Math.min(Rmax, 6), w = P.prev.w, h = P.prev.h, cx = Math.round(pt[0]), cy = Math.round(pt[1]);
-  if (!rtHasSpot(pt, Rmax)) { toast('Ingen fläck hittades här – måla över den om du vill laga ändå.'); return false; } // v20 N7: alla färger under fingret finns redan runt omkring (ren yta, tegel, fog)
+  if (!rtHasSpotMS(pt, Rmax)) { toast('Ingen fläck hittades här – måla över den om du vill laga ändå.'); return false; } // v20 N7: alla färger under fingret finns redan runt omkring (ren yta, tegel, fog)
   var Rl = 0; for (;;) { M = rtHealTry(pt, R); if (M === false && !Rl) Rl = R; if (M || R >= Rmax) break; R = Math.min(Rmax, R * 1.6); }
   if (!M && !Rl) { toast('Ingen fläck hittades här – måla över den om du vill laga ändå.'); return false; } // v18b N7: tryck på rent område skapar ingen lapp
   rtHealDraw(M, w, h, cx, cy, Rl ? Math.max(3, Rl * 0.9) : Rmax); // fläcken flyter ihop med en linje e.d.: lagom stor cirkel där den hittades
 }
+// v20 F2: fläcktestet körs i flera radier (samma steg som masken växer i). Med en enda stor radie (telefon: liten RT.s → Rmax ~80 bildpx)
+// blev en liten fläck under 1 % av ytan → 'ingen fläck', ingen lapp, och väntan på lappen räknades som frysning.
+function rtHasSpotMS(pt, Rmax) { for (var R = Math.min(Rmax, 6); ; R = Math.min(Rmax, R * 1.6)) { if (rtHasSpot(pt, R)) return true; if (R >= Rmax) return false; } }
 function rtHasSpot(pt, R) {
   var d = P.prev.data.data, w = P.prev.w, h = P.prev.h, cx = Math.round(pt[0]), cy = Math.round(pt[1]), R2 = R * 1.8, x, y, i, ring = [], inn = [];
   for (y = Math.max(0, cy - R2 | 0); y <= Math.min(h - 1, cy + R2); y++) for (x = Math.max(0, cx - R2 | 0); x <= Math.min(w - 1, cx + R2); x++) { var q = Math.hypot(x - cx, y - cy); i = (y * w + x) * 4; if (q > R * 1.15 && q <= R2) ring.push(i); else if (q <= R) inn.push(i); }
