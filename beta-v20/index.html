@@ -7143,7 +7143,7 @@ function rtHasSpot(pt, R) {
   for (y = Math.max(0, cy - R2 | 0); y <= Math.min(h - 1, cy + R2); y++) for (x = Math.max(0, cx - R2 | 0); x <= Math.min(w - 1, cx + R2); x++) { var q = Math.hypot(x - cx, y - cy); i = (y * w + x) * 4; if (q > R * 1.15 && q <= R2) ring.push(i); else if (q <= R) inn.push(i); }
   if (ring.length < 20 || !inn.length) return true; var st = Math.max(1, Math.floor(ring.length / 500)), rs = []; for (i = 0; i < ring.length; i += st) rs.push(ring[i]);
   var odd = 0, need = Math.max(3, inn.length * 0.01);
-  for (var k = 0; k < inn.length; k++) { var j = inn[k], best = 1e9; for (var m = 0; m < rs.length && best > 24; m++) { var r = rs[m], e = Math.abs(d[j] - d[r]) + Math.abs(d[j + 1] - d[r + 1]) + Math.abs(d[j + 2] - d[r + 2]); if (e < best) best = e; } if (best > 24 && ++odd >= need) return true; }
+  for (var k = 0; k < inn.length; k++) { var j = inn[k], best = 1e9; for (var m = 0; m < rs.length && best > 16; m++) { var r = rs[m], e = Math.abs(d[j] - d[r]) + Math.abs(d[j + 1] - d[r + 1]) + Math.abs(d[j + 2] - d[r + 2]); if (e < best) best = e; } if (best > 16 && ++odd >= need) return true; }
   return false;
 }
 function rtHealTry(pt, R) {
@@ -7858,7 +7858,7 @@ function slowSeekSrc(t) { if (!TL.on) return seekLatest(t); var i = TL.sel, c = 
     var cs = getComputedStyle(n); ind.style.order = cs.order;
     n.addEventListener('scroll', function () { upd(n); }, { passive: true });
     var nudged = false; function check() { upd(n); ind.style.order = getComputedStyle(n).order; if (!nudged && n.classList.contains('scrolls') && n.offsetParent && n.scrollLeft < 2) { nudged = true; try { n.scrollTo({ left: 36, behavior: 'smooth' }); setTimeout(function () { n.scrollTo({ left: 0, behavior: 'smooth' }); }, 450); } catch (e) {} } }
-    if (window.ResizeObserver) new ResizeObserver(check).observe(n); addEventListener('resize', check); setTimeout(check, 300);
+    if (window.ResizeObserver) new ResizeObserver(function () { requestAnimationFrame(check); }).observe(n); addEventListener('resize', check); setTimeout(check, 300);
     var on = n.querySelector('button.on'); n.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button'); if (b && b.scrollIntoView) try { b.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); } catch (er) {} });
   });
   window.toolsScrollUpd = function () { ['#photoTools', '#videoTools'].forEach(function (s) { var n = $(s); if (n) upd(n); }); };
