@@ -7974,8 +7974,8 @@ function delaGc() { // element som varken tidslinjen eller Ångra pekar på
     '.imv .tlclip.mark .tlth{filter:grayscale(1);opacity:.6}.imv .tlclip.mark .tlbox::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,59,48,.55) 0 6px,transparent 6px 12px);z-index:1}' +
     '.imv .tlx{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;font:700 26px/1 system-ui;color:#ff3b30;text-shadow:0 0 3px #fff;pointer-events:none}' +
     '.imv .tlh{position:absolute;top:-4px;bottom:-4px;width:44px;z-index:5;touch-action:none;cursor:ew-resize}.imv .tlh::before{content:"";position:absolute;top:4px;bottom:4px;left:16px;width:12px;border-radius:4px;background:#ffd34d;box-shadow:0 0 0 1px #000}' +
-    '.imv .tlh::after{content:"";position:absolute;top:50%;left:21px;width:2px;height:16px;margin-top:-8px;background:#7a5b00}.imv .tlh.l{left:-19px}.imv .tlh.r{right:-19px}' +
-    '.imv .tltrash{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;width:44px;height:44px;border-radius:22px;border:0;background:rgba(0,0,0,.62);color:#fff;font-size:20px;padding:0}' +
+    '.imv .tlh::after{content:"";position:absolute;top:50%;left:21px;width:2px;height:16px;margin-top:-8px;background:#7a5b00}.imv .tlh.l{left:-19px}.imv .tlh.r{right:-19px}.imv .smal .tlh.l{left:-24px}.imv .smal .tlh.r{right:-24px}' +
+    '#tlImvRow .tltrash{color:#ff453a}' +
     '.imv .tlcutline{position:absolute;top:-8px;bottom:-4px;width:2px;margin-left:-1px;background:#fff;z-index:3;pointer-events:none;box-shadow:0 0 2px #000}' +
     '.imv .tlflag{position:absolute;top:-46px;width:44px;height:44px;margin-left:-4px;border:0;background:none;padding:0;z-index:6;cursor:pointer;filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000)}' +
     '.imv .tlflag::before{content:"";position:absolute;left:3px;top:8px;bottom:0;width:2px;background:#fff}.imv .tlflag::after{content:"";position:absolute;left:5px;top:8px;width:20px;height:14px;background:#fff;clip-path:polygon(0 0,100% 30%,0 60%)}' +
@@ -8026,14 +8026,15 @@ function tlImovie() {
     var box = el('div', { class: 'tlbox' }); while (b.firstChild) box.append(b.firstChild); box.prepend(tlThumbTiles(c, px)); b.append(box);
     if (clipSlowEff(c)) { b.classList.add('slow'); box.append(el('span', { class: 'tlturtle', text: '🐢', title: 'Slowmotion', 'aria-label': 'Slowmotion' })); }
     if (TL.marked.has(c)) { b.classList.add('mark'); box.append(el('span', { class: 'tlx', text: '✕' })); }
-    if (i === TL.sel) { b.append(el('div', { class: 'tlh l', 'data-side': 'l', role: 'slider', 'aria-label': 'Flytta början av delen' }), el('div', { class: 'tlh r', 'data-side': 'r', role: 'slider', 'aria-label': 'Flytta slutet av delen' }));
-      if (n > 1) b.append(el('button', { type: 'button', class: 'tltrash', 'data-act': 'trash', title: 'Ta bort delen (Ångra finns)', 'aria-label': 'Ta bort delen', text: '🗑' })); }
+    if (i === TL.sel) { if (px < 130) b.classList.add('smal'); /* v21c (N1): smal del -> handtagen helt utanför, mitten går alltid att lyfta */ b.append(el('div', { class: 'tlh l', 'data-side': 'l', role: 'slider', 'aria-label': 'Flytta början av delen' }), el('div', { class: 'tlh r', 'data-side': 'r', role: 'slider', 'aria-label': 'Flytta slutet av delen' }));
+      /* v21c (N1): papperskorgen ligger i knappraden under remsan, aldrig på delen man tar tag i */ }
     if (i > 0) { var l = st.s[i] / T * 100; tr.append(el('i', { class: 'tlcutline', style: 'left:' + l + '%' }));
       tr.append(el('button', { type: 'button', class: 'tlflag' + (TL.cutSel === i ? ' on' : ''), 'data-cut': i, style: 'left:' + l + '%', title: (c.cut ? 'Delning ' : 'Klippbyte ') + fmtTime(st.s[i]), 'aria-label': 'Hoppa till brytpunkt ' + i })); }
   });
   var sel = tr.querySelector('.tlclip.on'); if (sel) { var x = sel.offsetLeft, w = sel.offsetWidth; if (x < sc.scrollLeft || x + w > sc.scrollLeft + vw) sc.scrollLeft = Math.max(0, x - vw / 3); }
   // knappar: förhandsvisa övergång, markera/ta bort markerade
   var card = $('#tlSelCard') || tlPane, has = TL.marked.size, row = el('div', { class: 'btnrow tlimvrow', id: 'tlImvRow' }, [
+    el('button', { type: 'button', class: 'btn sm tltrash', id: 'tlTrash', 'data-act': 'trash', disabled: n < 2 || null, title: 'Ta bort vald del (Ångra finns)', 'aria-label': 'Ta bort vald del', text: '🗑 Ta bort del ' + (TL.sel + 1) }),
     el('button', { type: 'button', class: 'btn sm', id: 'tlPrevCut', 'data-act': 'prev', disabled: n < 2 || null, text: '▶ Förhandsvisa övergång' }),
     el('button', { type: 'button', class: 'btn sm', id: 'tlMarkBtn', 'data-act': 'mark', disabled: n < 2 || null, text: TL.marked.has(TL.clips[TL.sel]) ? 'Avmarkera del' : 'Markera för borttagning' }),
     el('button', { type: 'button', class: 'btn sm', id: 'tlDelMarked', 'data-act': 'delmarked', disabled: !has || null, text: 'Ta bort markerade' + (has ? ' (' + has + ')' : '') })]);
