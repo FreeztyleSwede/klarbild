@@ -7803,7 +7803,8 @@ function clipSlowEff(c) { var S = c && c.slow; if (!S || !S.on) return null; var
 function clipLocal(c, u) { var e = clipSlowEff(c); if (!e) return c.inn + u; var A = e.a - c.inn, D = (e.b - e.a) / e.f; return u < A ? c.inn + u : u < A + D ? e.a + (u - A) * e.f : e.b + (u - A - D); }
 function clipOutT(c, t) { var e = clipSlowEff(c), u = t - c.inn; if (!e || t <= e.a) return u; if (t < e.b) return e.a - c.inn + (t - e.a) / e.f; return u + (e.b - e.a) / e.f - (e.b - e.a); } // källtid → utdatatid i klippet
 tlLen = function (c) { var e = clipSlowEff(c), L = Math.max(0.2, c.out - c.inn); return e ? L - (e.b - e.a) + (e.b - e.a) / e.f : L; };
-function tlXb(i) { var n = TL.clips[i + 1]; return n && !n.cut ? tlX() : 0; } // övergång mellan klipp i och i+1
+function tlCut(i) { var n = TL.clips[i], p = TL.clips[i - 1]; return !!(n && p && n.cut && p.file === n.file && Math.abs(p.out - n.inn) < 1e-3); } // v22: delning gäller bara när delarna fortfarande ligger i följd (efter flytt/borttagning blir det en övergång)
+function tlXb(i) { var n = TL.clips[i + 1]; return n && !tlCut(i + 1) ? tlX() : 0; } // övergång mellan klipp i och i+1
 tlStarts = function () { var s = [], t = 0; TL.clips.forEach(function (c, i) { var L = tlLen(c), x = Math.min(tlXb(i), L / 2); s.push(t); t += L - (i < TL.clips.length - 1 ? x : 0); }); return { s: s, total: t }; };
 tlActive = function (pos) {
   var st = tlStarts(), out = [];
@@ -7819,7 +7820,7 @@ tlActive = function (pos) {
   var _p = wcPlan;
   wcPlan = function () { var pl = _p.apply(this, arguments); if (!pl.tl) return pl;
     pl.clips.forEach(function (pc, i) { var tc = TL.clips[i]; if (!tc) return; var e = clipSlowEff(tc); if (e) pc.slow = e; pc.L = tlLen(tc);
-      if (tc.cut) { pc.xin = 0; if (pl.clips[i - 1]) pl.clips[i - 1].xout = 0; } });
+      if (tlCut(i)) { pc.xin = 0; if (pl.clips[i - 1]) pl.clips[i - 1].xout = 0; } });
     var st = tlStarts(); pl.clips.forEach(function (pc, i) { pc.s = st.s[i]; }); pl.total = st.total; return pl; };
   var _a = slowAudioParts; slowAudioParts = function (c) { var o = _a(c); if (o.length) { o[0].xin = c.xin || 0; o[o.length - 1].xout = c.xout || 0; } return o; };
   var _pl = tlPlay; tlPlay = function () { delaElAssign(); delaPower(); return _pl.apply(this, arguments); };
@@ -7886,7 +7887,7 @@ function delaMarks() {
 }
 function delaTlMarks() { // i tidslinjepanelens filmspår
   var tr = $('#tlTrack'); if (!tr || !TL.on) return; var st = tlStarts(), T = Math.max(0.01, st.total);
-  TL.clips.forEach(function (c, i) { var b = tr.querySelector('.tlclip[data-i="' + i + '"]'); if (!b) return; if (c.cut) b.classList.add('cut'); var e = clipSlowEff(c);
+  TL.clips.forEach(function (c, i) { var b = tr.querySelector('.tlclip[data-i="' + i + '"]'); if (!b) return; if (tlCut(i)) b.classList.add('cut'); var e = clipSlowEff(c);
     if (e) { var L = tlLen(c); b.append(el('i', { class: 'tlslow', style: 'left:' + (clipOutT(c, e.a) / L * 100) + '%;width:' + ((e.b - e.a) / e.f / L * 100) + '%', title: 'Slowmotion' })); b.classList.add('hasslow'); } });
 }
 function delaRefresh() { if (TL.on) { try { tlApplyRange(); if (TL.pos > V.end) TL.pos = V.end; } catch (e) {} } try { tlUI(); } catch (e) {} try { slowUi(); } catch (e) {} delaMarks(); if (window.refreshVideoExport) try { refreshVideoExport(); } catch (e) {} }
@@ -7994,7 +7995,7 @@ function delaGc() { // element som varken tidslinjen eller Ångra pekar på
     '.imv .tlclip.mark .tlth{filter:grayscale(1);opacity:.6}.imv .tlclip.mark .tlbox::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,59,48,.55) 0 6px,transparent 6px 12px);z-index:1}' +
     '.imv .tlx{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;font:700 26px/1 system-ui;color:#ff3b30;text-shadow:0 0 3px #fff;pointer-events:none}' +
     '.imv .tlh{position:absolute;top:-4px;bottom:-4px;width:44px;z-index:5;touch-action:none;cursor:ew-resize}.imv .tlh::before{content:"";position:absolute;top:4px;bottom:4px;left:16px;width:12px;border-radius:4px;background:#ffd34d;box-shadow:0 0 0 1px #000}' +
-    '.imv .tlh::after{content:"";position:absolute;top:50%;left:21px;width:2px;height:16px;margin-top:-8px;background:#7a5b00}.imv .tlh.l{left:-19px}.imv .tlh.r{right:-19px}.imv .smal .tlh.l{left:-24px}.imv .smal .tlh.r{right:-24px}' +
+    '.imv .tlh::after{content:"";position:absolute;top:50%;left:21px;width:2px;height:16px;margin-top:-8px;background:#7a5b00}.imv .tlh.l{left:0}.imv .tlh.l::before{left:0}.imv .tlh.l::after{left:5px}.imv .tlh.r{right:0}.imv .tlh.r::before{left:32px}.imv .tlh.r::after{left:37px}.imv .smal .tlh.l{left:0}.imv .smal .tlh.r{right:0}' +
     '#tlImvRow .tltrash{color:#ff453a}.tlfaderow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tlfaderow .tlfadelen{flex:1 1 120px;min-height:44px;margin:0}.tlfaderow .btn{min-height:44px}.tlfaderow .val{min-width:3.2em;text-align:right}' +
     '.imv .tlcutline{position:absolute;top:-8px;bottom:-4px;width:2px;margin-left:-1px;background:#fff;z-index:3;pointer-events:none;box-shadow:0 0 2px #000}' +
     '.imv .tlflag{position:absolute;top:-46px;width:44px;height:44px;margin-left:-4px;border:0;background:none;padding:0;z-index:6;cursor:pointer;filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000)}' +
@@ -8039,7 +8040,7 @@ var TLTRIM = null; TL.marked = TL.marked || new Set(); TL.cutSel = -1;
 function tlImovie() {
   if (!TLTH.busy) tlThumbGc(); var tr = tlTrackEl; if (!TL.on || !tr || !tr.isConnected) return;
   var lane = tr.parentNode, sc = el('div', { class: 'tlscroll', id: 'tlScroll' }); lane.insertBefore(sc, tr); sc.append(tr); tr.classList.add('imv');
-  var n = TL.clips.length, vw = Math.max(200, sc.clientWidth || 320), W = Math.max(vw, n * 66); tr.style.width = W + 'px';
+  var n = TL.clips.length, vw = Math.max(200, sc.clientWidth || 320), Tz = Math.max(0.01, V.end), cs = TL.clips[TL.sel], W = Math.min(40000, Math.max(vw, n * 66, cs ? 134 * Tz / Math.max(0.01, tlLen(cs)) : 0)); /* v22 (N3): remsan zoomas så att vald del är minst 134 px – handtagen ryms inuti, ingen överlappning */ tr.style.width = W + 'px';
   var st = tlStarts(), T = Math.max(0.01, V.end);
   TL.clips.forEach(function (c, i) {
     var b = tr.querySelector('.tlclip[data-i="' + i + '"]'); if (!b) return; var px = tlLen(c) / T * W;
@@ -8049,7 +8050,7 @@ function tlImovie() {
     if (i === TL.sel) { if (px < 130) b.classList.add('smal'); /* v21c (N1): smal del -> handtagen helt utanför, mitten går alltid att lyfta */ b.append(el('div', { class: 'tlh l', 'data-side': 'l', role: 'slider', 'aria-label': 'Flytta början av delen' }), el('div', { class: 'tlh r', 'data-side': 'r', role: 'slider', 'aria-label': 'Flytta slutet av delen' }));
       /* v21c (N1): papperskorgen ligger i knappraden under remsan, aldrig på delen man tar tag i */ }
     if (i > 0) { var l = st.s[i] / T * 100; tr.append(el('i', { class: 'tlcutline', style: 'left:' + l + '%' }));
-      tr.append(el('button', { type: 'button', class: 'tlflag' + (TL.cutSel === i ? ' on' : ''), 'data-cut': i, style: 'left:' + l + '%', title: (c.cut ? 'Delning ' : 'Klippbyte ') + fmtTime(st.s[i]), 'aria-label': 'Hoppa till brytpunkt ' + i })); }
+      tr.append(el('button', { type: 'button', class: 'tlflag' + (TL.cutSel === i ? ' on' : ''), 'data-cut': i, style: 'left:' + l + '%', title: (tlCut(i) ? 'Delning ' : 'Klippbyte ') + fmtTime(st.s[i]), 'aria-label': 'Hoppa till brytpunkt ' + i })); }
   });
   var sel = tr.querySelector('.tlclip.on'); if (sel) { var x = sel.offsetLeft, w = sel.offsetWidth; if (x < sc.scrollLeft || x + w > sc.scrollLeft + vw) sc.scrollLeft = Math.max(0, x - vw / 3); }
   // knappar: förhandsvisa övergång, markera/ta bort markerade
@@ -8189,6 +8190,74 @@ function pxReset() { if (PX.job) PX.job.cancel = true; PX.map.forEach(function (
   var _lv = loadVideo; loadVideo = function (f) { if (!(window.PX && PX.swapping)) { pxReset(); videoEl.__kbOW = videoEl.__kbOH = 0; videoEl.__kbPx = null; } return _lv.apply(this, arguments); };
   var _ex = window.exportVideo; if (typeof _ex === 'function') exportVideo = function () { if (PX.job) PX.job.cancel = true; return _ex.apply(this, arguments); };
 })();
+
+/* v22 del 4: textbana – texten har start (tS) och längd (tD, null = till slutet). Synlig när tS ≤ T < tS+tD (rutexakt: ruta n syns om n/fps ligger i intervallet). */
+var TXT = { drag: null };
+function txtTotal() { return Math.max(0.01, TL.on ? V.end : (V.end - V.start)); }
+function txtNow() { return TL.on ? TL.pos : ((videoEl.currentTime || 0) - V.start); }
+function txtNorm(t) { var T = txtTotal(); t.tS = Math.max(0, Math.min(+t.tS || 0, T - 0.1)); if (t.tD != null) { t.tD = Math.max(0.1, Math.min(+t.tD, T - t.tS)); if (t.tS + t.tD >= T - 1e-3) t.tD = null; } }
+function txtEnd(t) { return t.tD == null ? Infinity : (+t.tS || 0) + t.tD; }
+function txtOn(t, T) { if (!t) return false; var s = +t.tS || 0; return T >= s - 1e-6 && T < txtEnd(t) - 1e-6; }
+(function () {
+  var _a = drawTextAnim; drawTextAnim = function (ctx, w, h, t) { if (t && !t._drag && !txtOn(t, txtNow())) return; return _a.apply(this, arguments); };
+  var _w = wcText; wcText = function (ctx, w, h, t, T) { if (!txtOn(t, T)) return; return _w.apply(this, arguments); };
+  var _s = delaSnap; delaSnap = function () { var s = _s(); s.txt = [V.text.tS || 0, V.text.tD == null ? null : V.text.tD]; return s; };
+  var _u = delaUndo; delaUndo = function () { var s = DELA_UNDO[DELA_UNDO.length - 1]; var r = _u.apply(this, arguments); if (s && s.txt) { V.text.tS = s.txt[0]; V.text.tD = s.txt[1]; txtLane(); requestVideoRender(); } return r; };
+  var st = document.createElement('style');
+  st.textContent = '.tltxtlane{position:relative;height:48px;margin-top:4px;border-radius:8px;background:rgba(127,127,127,.12)}' +
+    '.tltxt{position:absolute;top:2px;bottom:2px;min-width:8px;border-radius:7px;background:#c77dff;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;overflow:visible;touch-action:none;cursor:grab;box-sizing:border-box}' +
+    '.tltxt span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;pointer-events:none}.tltxt.empty{opacity:.45}' +
+    '.tltxt .txh{position:absolute;top:0;bottom:0;width:44px;touch-action:none;cursor:ew-resize;z-index:2}.tltxt .txh::after{content:"";position:absolute;top:8px;bottom:8px;width:6px;border-radius:3px;background:#fff}' +
+    '.tltxt .txh.l{right:100%}.tltxt .txh.l::after{right:2px}.tltxt .txh.r{left:100%}.tltxt .txh.r::after{left:2px}' +
+    '.txtrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}.txtrow label{display:flex;gap:6px;align-items:center;font-size:13px}.txtrow input{width:84px;min-height:44px;box-sizing:border-box}';
+  document.head.appendChild(st);
+  var _ui = tlUI; tlUI = function () { var r = _ui.apply(this, arguments); try { txtLane(true); } catch (e) { console.warn('txt', e); } return r; };
+})();
+function txtLane(build) {
+  var t = V.text, T = txtTotal(); if (!window.tlTrackEl || !tlTrackEl.isConnected) return; txtNorm(t);
+  var ln = document.getElementById('tlTxtLane');
+  if (build || !ln) {
+    if (ln) ln.remove(); var old = document.getElementById('txtRow'); if (old) old.remove();
+    ln = el('div', { class: 'tltxtlane', id: 'tlTxtLane', 'aria-label': 'Textspår' });
+    var b = el('div', { class: 'tltxt', id: 'tlTxt', role: 'slider', tabindex: 0, 'aria-label': 'Textens placering i tiden' }, [el('div', { class: 'txh l', 'data-s': 'l' }), el('span', {}), el('div', { class: 'txh r', 'data-s': 'r' })]);
+    ln.append(b); txtDrag(b);
+    var sc = document.getElementById('tlScroll');
+    if (sc && sc.contains(tlTrackEl)) { ln.style.width = tlTrackEl.style.width || '100%'; sc.append(ln); }
+    else { var lane = el('div', { class: 'tllane' }, [el('span', { class: 'tllbl', text: 'Text' }), ln]); ln.style.flex = '1'; var ls = tlTrackEl.closest('.tllanes'); if (ls) ls.append(lane); }
+    var fS = el('input', { type: 'number', id: 'txtStart', min: '0', step: '0.01', inputmode: 'decimal', 'aria-label': 'Textens start i sekunder' });
+    var fD = el('input', { type: 'number', id: 'txtDur', min: '0.1', step: '0.01', inputmode: 'decimal', 'aria-label': 'Textens längd i sekunder' });
+    function set() { var s = parseFloat(String(fS.value).replace(',', '.')), d = parseFloat(String(fD.value).replace(',', '.')); if (!isFinite(s) || !isFinite(d)) { txtLane(); return; }
+      delaPush(); t.tS = s; t.tD = d; txtLane(); requestVideoRender(); try { delaRefreshUndo(); } catch (e) {} }
+    fS.addEventListener('change', set); fD.addEventListener('change', set);
+    var row = el('div', { class: 'txtrow', id: 'txtRow' }, [el('span', { class: 'lbl', text: 'Text:' }), el('label', {}, ['Start ', fS, ' s']), el('label', {}, ['Längd ', fD, ' s'])]);
+    var ls2 = tlTrackEl.closest('.tllanes'); if (ls2 && ls2.parentNode) ls2.parentNode.insertBefore(row, ls2.nextSibling);
+  }
+  var bk = document.getElementById('tlTxt'), e = Math.min(T, txtEnd(t)), s = +t.tS || 0;
+  bk.style.left = (s / T * 100) + '%'; bk.style.width = ((e - s) / T * 100) + '%';
+  bk.classList.toggle('empty', !(t.text && t.text.trim()));
+  bk.querySelector('span').textContent = (t.text && t.text.trim()) ? t.text.trim().split('\n')[0] : 'Text';
+  bk.setAttribute('aria-valuetext', 'Start ' + s.toFixed(2) + ' s, längd ' + (e - s).toFixed(2) + ' s');
+  var a = document.getElementById('txtStart'), d = document.getElementById('txtDur');
+  if (a && document.activeElement !== a) a.value = s.toFixed(2); if (d && document.activeElement !== d) d.value = (e - s).toFixed(2);
+}
+function txtDrag(b) {
+  b.addEventListener('pointerdown', function (ev) {
+    var t = V.text, side = ev.target.getAttribute && ev.target.getAttribute('data-s'), ln = b.parentNode, W = Math.max(1, ln.getBoundingClientRect().width), T = txtTotal();
+    ev.preventDefault(); ev.stopPropagation(); try { b.setPointerCapture(ev.pointerId); } catch (e) {}
+    TXT.drag = { id: ev.pointerId, x: ev.clientX, side: side || 'm', s: +t.tS || 0, e: Math.min(T, txtEnd(t)), W: W, T: T, pushed: false };
+  });
+  b.addEventListener('pointermove', function (ev) {
+    var g = TXT.drag; if (!g || g.id !== ev.pointerId) return; var dt = (ev.clientX - g.x) / g.W * g.T; if (!g.pushed) { if (Math.abs(ev.clientX - g.x) < 3) return; delaPush(); g.pushed = true; }
+    var t = V.text, L = g.e - g.s;
+    if (g.side === 'm') { var s = Math.max(0, Math.min(g.T - L, g.s + dt)); t.tS = s; t.tD = L; }
+    else if (g.side === 'l') { var s2 = Math.max(0, Math.min(g.e - 0.1, g.s + dt)); t.tS = s2; t.tD = g.e - s2; }
+    else { var e2 = Math.max(g.s + 0.1, Math.min(g.T, g.e + dt)); t.tS = g.s; t.tD = e2 - g.s; }
+    t.tS = Math.round(t.tS * 100) / 100; t.tD = Math.round(t.tD * 100) / 100; txtLane(); requestVideoRender();
+  });
+  function up(ev) { var g = TXT.drag; if (!g || g.id !== ev.pointerId) return; TXT.drag = null; if (g.pushed) { txtLane(); try { delaRefreshUndo(); } catch (e) {} } }
+  b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+}
+function delaRefreshUndo() { var u = document.getElementById('delaLUndo'), u2 = document.getElementById('delaTUndo'); [u, u2].forEach(function (x) { if (x) x.disabled = !DELA_UNDO.length; }); }
 
 </script>
 </body>
