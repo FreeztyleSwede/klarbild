@@ -5987,6 +5987,7 @@ var WCHOLD = null; function wcHoldCanvas(fr) { // sista bilden behålls när del
   var b = WCHOLD || (WCHOLD = document.createElement('canvas')); if (b.width !== fr.width || b.height !== fr.height) { b.width = fr.width; b.height = fr.height; } b.getContext('2d').drawImage(fr, 0, 0); return b; }
 /* v21: begripligt fel + Försök igen */
 function wcErrText(e) { var m = String((e && (e.message || e.name)) || e || ''), n = (e && e.name) || '';
+  if (n === 'KBDecodeError') { var a = (e.at || 0), mm = Math.floor(a / 60), ss = Math.floor(a - mm * 60); return 'Källfilmen gick inte att avkoda vid ' + mm + ':' + (ss < 10 ? '0' : '') + ss + ' (filen kan vara skadad eller i ett format webbläsaren inte klarar). Exporten avbröts. Försök igen, eller ta bort den delen av filmen och exportera igen.'; }
   if (/QuotaExceeded|quota|NotReadable|space/i.test(m + n)) return 'Det finns inte tillräckligt med lagringsutrymme för filmen. Frigör utrymme på enheten och försök igen.';
   if (/memory|minne|allocation|OutOfMemory|RangeError/i.test(m + n)) return 'Enheten fick slut på minne under exporten. Försök igen – stäng gärna andra flikar och appar, eller välj en lägre upplösning.';
   if (/Decod|decode|EncodingError|Encoder|encode|codec|closed|reclaimed|OperationError|InvalidState/i.test(m + n)) return 'Webbläsaren tappade film-avkodaren eller -kodaren (händer på iPhone när minnet blir knappt). Försök igen; hjälper det inte, välj en lägre upplösning.';
@@ -6011,7 +6012,12 @@ function wcSeqFrames(sink, times, X) {
     var st = Math.max(0, lo - 1e-3); // börja en hel GOP före första begärda tid: öppen GOP (iPhone) – de inledande B-rutorna behöver föregående GOP (WebKit: 'Decode error' annars)
     st = Math.max(0, st - 2.5); // ≥ en GOP bakåt (iPhone: nyckelruta ≤ ~2 s); rutorna före lo hoppas bara över
     var it = sink.canvases(st, hi + 0.5)[Symbol.asyncIterator](), cur = null, nxt = null, end = false;
-    async function pull() { if (end) return null; var r = await it.next(); if (r.done) { end = true; return null; } return r.value; }
+    var lastTs = st; // v23j: avkodningsfel mitt i filmen ger ett tydligt fel – aldrig ett häng (vakthund om avkodaren tystnar)
+    async function pull() { if (end) return null; var tm, ms = (window.WCO && WCO.decTimeout) || 20000;
+      try { var r = await Promise.race([it.next(), new Promise(function (_, rej) { tm = setTimeout(function () { var e = new Error('Avkodaren svarar inte'); e.stall = true; rej(e); }, ms); })]); }
+      catch (e) { var d = new Error('KBDecode vid ' + lastTs.toFixed(2) + ' s: ' + ((e && e.message) || e)); d.name = 'KBDecodeError'; d.at = lastTs; d.cause = e; if (X) X.decErr = d.message; throw d; }
+      finally { clearTimeout(tm); }
+      if (r.done) { end = true; return null; } if (r.value) lastTs = r.value.timestamp; return r.value; }
     try {
       try { cur = await pull(); nxt = await pull(); }
       catch (e0) { if (!(st > 0)) throw e0; // avkodaren vägrar starta mitt i filmen (icke-IDR-nyckelruta/öppen GOP): börja om från filmens start och hoppa fram
@@ -8807,6 +8813,59 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
   btn.addEventListener('click', function () { V.fadeEnd.on = !V.fadeEnd.on; upd(); if (window.requestVideoRender) requestVideoRender(); if (window.sesSave) sesSave(); });
   len.addEventListener('change', function () { V.fadeEnd.d = parseFloat(len.value) || 1.5; if (window.requestVideoRender) requestVideoRender(); if (window.sesSave) sesSave(); });
   var jog = document.getElementById('kbJog'), row = el('div', { id: 'kbFadeRow' }); jog.before(row); row.append(jog, btn, len); upd(); window.fadeEndUI = upd;
+})();
+
+/* ---------- v23j: Delare mellan menyfältet och filmen – dra med fingret. Bredvid varandra (surfplatta, liggande, dator): bredden.
+   Staplade (stående telefon): höjden. 44 px träffyta, synligt grepp, touch-action:none bara på greppet, dubbeltryck = standard, sparas i localStorage. ---------- */
+(function () {
+  var KEY = 'kb.split.v1', layout = document.querySelector('main.layout'), panel = document.querySelector('.panel'), stage = document.querySelector('.stage'), hdr = document.querySelector('header.top');
+  if (!layout || !panel || !stage) return;
+  document.head.append(el('style', { text:
+    '#kbSplitter{position:relative;flex:none;z-index:7;width:0;height:0;align-self:stretch}' +
+    '#kbSplitter .grip{position:absolute;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;display:grid;place-items:center;background:transparent}' +
+    '#kbSplitter .grip::after{content:"";border-radius:3px;background:rgba(255,255,255,.45);box-shadow:0 0 0 1px rgba(0,0,0,.35)}' +
+    '#kbSplitter.row .grip{top:0;bottom:0;left:-38px;width:44px;cursor:col-resize}#kbSplitter.row .grip::after{width:5px;height:44px}' +
+    '#kbSplitter.col{width:auto;height:0}#kbSplitter.col .grip{left:0;right:0;top:-38px;height:44px;cursor:row-resize}#kbSplitter.col .grip::after{width:44px;height:5px}' +
+    '#kbSplitter.drag .grip::after{background:#ffd34d}body.fs #kbSplitter,body.ui-hidden #kbSplitter{display:none}' +
+    'body.splw:not(.fs) .panel{width:var(--splw)!important;max-width:none}' +
+    '@media (orientation:landscape) and (max-height:500px){body.splw:not(.fs) header.top{width:var(--splw)!important}}' +
+    'body.splh:not(.fs) .panel{height:var(--splh)!important;max-height:none}body.splh:not(.fs) .panel .sheet{flex:1 1 auto!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:auto}'
+  }));
+  var sp = el('div', { id: 'kbSplitter' }), grip = el('div', { class: 'grip', role: 'separator', tabindex: 0, 'aria-label': 'Delare: dra för att ändra storlek på menyn och filmen (dubbeltryck återställer)' });
+  sp.append(grip); layout.insertBefore(sp, panel);
+  var st = {}; try { st = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
+  function isRow() { return getComputedStyle(layout).flexDirection === 'row'; }
+  function avail() { var r = layout.getBoundingClientRect(); return isRow() ? r.width : r.height; }
+  // gränser: meny 220 px – 60 %, filmen aldrig under 40 %; staplat: meny minst 160 px
+  function clamp(v) { var A = avail(), lo = isRow() ? 220 : 160, hi = Math.max(lo, A * 0.6); return Math.round(Math.max(lo, Math.min(hi, v))); }
+  function apply(save) {
+    var row = isRow(), v = row ? st.w : st.h; sp.className = row ? 'row' : 'col';
+    document.body.classList.remove('splw', 'splh'); document.body.style.removeProperty('--splw'); document.body.style.removeProperty('--splh');
+    if (v != null) { v = clamp(v); document.body.classList.add(row ? 'splw' : 'splh'); document.body.style.setProperty(row ? '--splw' : '--splh', v + 'px'); }
+    if (save) try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {}
+    if (typeof refit === 'function') refit(); // filmytan räknas om direkt (ingen oskärpa/svart)
+  }
+  function cur() { var r = panel.getBoundingClientRect(); return isRow() ? r.width : r.height; }
+  var d = null, lastTap = 0;
+  grip.addEventListener('pointerdown', function (e) {
+    var now = Date.now(); if (now - lastTap < 350) { lastTap = 0; reset(); e.preventDefault(); return; } lastTap = now;
+    d = { x: e.clientX, y: e.clientY, v: cur(), id: e.pointerId, moved: false }; sp.classList.add('drag');
+    try { grip.setPointerCapture(e.pointerId); } catch (er) {} e.preventDefault(); e.stopPropagation(); });
+  grip.addEventListener('pointermove', function (e) { if (!d || e.pointerId !== d.id) return; e.stopPropagation();
+    var row = isRow(), dl = row ? d.x - e.clientX : d.y - e.clientY; // menyn ligger till höger/nedanför: dra mot filmen = större meny
+    if (Math.abs(dl) > 3) { d.moved = true; lastTap = 0; }
+    if (row) st.w = clamp(d.v + dl); else st.h = clamp(d.v + dl); apply(false); });
+  function end(e) { if (!d) return; sp.classList.remove('drag'); var m = d.moved; d = null; if (m) { apply(true); window.dispatchEvent(new Event('resize')); } }
+  grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+  grip.addEventListener('dblclick', function (e) { e.preventDefault(); reset(); });
+  grip.addEventListener('keydown', function (e) { var k = e.key, row = isRow(), s = e.shiftKey ? 40 : 10, dl = 0;
+    if (row && (k === 'ArrowLeft' || k === 'ArrowRight')) dl = k === 'ArrowLeft' ? s : -s; else if (!row && (k === 'ArrowUp' || k === 'ArrowDown')) dl = k === 'ArrowUp' ? s : -s;
+    else if (k === 'Home' || k === 'Escape') { reset(); e.preventDefault(); return; } else return;
+    e.preventDefault(); if (row) st.w = clamp(cur() + dl); else st.h = clamp(cur() + dl); apply(true); window.dispatchEvent(new Event('resize')); });
+  function reset() { if (isRow()) delete st.w; else delete st.h; apply(true); window.dispatchEvent(new Event('resize')); }
+  window.kbSplitReset = function () { st = {}; apply(true); };
+  var t = 0; window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(function () { if (!d) apply(false); }, 50); });
+  apply(false);
 })();
 
 </script>
