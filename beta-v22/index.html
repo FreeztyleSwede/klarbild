@@ -8465,28 +8465,35 @@ function sesOffer() {
 /* ---------- v22: Klippbord – ersätter Klipp och Tidslinje. Fast tidslinje under filmen, alltid synlig spelknapp,
    Dela här / Ta bort, dra i kanterna för att ändra längd (gula handtag), jogghjul för ruta-för-ruta. ---------- */
 (function () {
-  var css = '#kbDock{display:none;position:absolute;left:0;right:0;bottom:0;z-index:6;padding:8px 10px 10px;border-top:1px solid rgba(255,255,255,.1);background:rgba(18,20,26,.97);border-radius:0 0 inherit inherit}body.kbon #kbDock{display:block}body.kbon #videoCard .canvas-wrap{bottom:var(--kbh,0px)}' +
-    'body.kbon #vbar{display:none!important}' +
-    '#kbBar{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}#kbBar .btn{min-height:44px;white-space:nowrap}' +
-    '#kbPlay{flex:none;width:48px;height:48px;border-radius:50%;border:0;background:#ffd34d;color:#111;display:grid;place-items:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}#kbPlay svg{width:22px;height:22px}' +
-    '#kbTime{flex:1 1 auto;min-width:0;font:600 13px/1.2 system-ui;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+  /* v22d (K1): dockan ligger i panelen (ovanför panelens innehåll), inte ovanpå filmen – bildytan täcks aldrig. Stående: under filmen,
+     panelens innehåll krymper (rullar). Liggande/dator: panelen står bredvid filmen och dockan överst i den. Safe areas via env(). */
+  var css = '#kbDock{display:none;flex:none;order:0;padding:8px calc(10px + env(safe-area-inset-right)) 8px calc(10px + env(safe-area-inset-left));border-bottom:1px solid var(--line,rgba(255,255,255,.1))}body.kbon #kbDock{display:block}' +
+    'body.kbon .panel{display:flex;flex-direction:column;min-height:0}body.kbon .panel .sheet{min-height:0}' +
+    'body.kbon:not(.vfs) #vbar{display:none!important}' +
+    '#kbBar{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}#kbBar .btn{min-height:44px;white-space:nowrap;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
+    '#kbPlay,#kbFs{flex:none;width:48px;height:48px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}#kbPlay{background:#ffd34d;color:#111}#kbFs{width:44px;height:44px;background:rgba(127,127,127,.25);color:inherit}#kbPlay svg,#kbFs svg{width:22px;height:22px}' +
+    '#kbTime{position:absolute;right:14px;top:50%;transform:translateY(-50%);font:600 13px/1.2 system-ui;font-variant-numeric:tabular-nums;white-space:nowrap;color:#eee;pointer-events:none}' +
     '#kbDel{color:#ff453a}#kbLanes{margin-top:6px;min-width:0}#kbLanes .tllanes{margin:0}' +
     '#kbJog{position:relative;height:44px;margin-top:6px;border-radius:22px;background:#222 repeating-linear-gradient(90deg,#666 0 2px,transparent 2px 12px);touch-action:none;cursor:ew-resize;overflow:hidden;box-shadow:inset 0 0 10px #000}' +
-    '#kbJog::after{content:"";position:absolute;left:50%;top:6px;bottom:6px;width:3px;margin-left:-1px;background:#ffd34d;border-radius:2px}#kbJog span{position:absolute;left:12px;top:50%;transform:translateY(-50%);font:12px system-ui;color:#bbb;pointer-events:none}' +
-    '@media (max-width:430px){#kbBar .btn{padding-left:10px;padding-right:10px}' +
-    /* kompakt docka på telefon: inga banetiketter, lägre luft ovanför spåret, lägre textbana */
-    '#kbLanes{margin-top:4px}#kbLanes .tllanes{padding:2px 0}#kbLanes .tllane{padding:1px 4px}#kbLanes .tllbl{display:none}#kbLanes #tlScroll{padding-top:24px}#kbLanes #tlTxtLane{height:34px;margin-top:2px}#kbLanes #tlMusic{height:24px}#kbJog{margin-top:4px}}';
+    '#kbJog::after{content:"";position:absolute;left:50%;top:6px;bottom:6px;width:3px;margin-left:-1px;background:#ffd34d;border-radius:2px}#kbJog .jl{position:absolute;left:14px;top:50%;transform:translateY(-50%);font:12px system-ui;color:#bbb;pointer-events:none}' +
+    /* kompakt: smal skärm eller låg höjd (telefon liggande) – inga banetiketter, mindre luft; låg höjd: bara bildspåret */
+    '@media (max-width:430px),(max-height:500px){#kbBar{gap:6px}#kbBar .btn{padding-left:8px;padding-right:8px}#kbLanes{margin-top:4px}#kbLanes .tllanes{padding:2px 0}#kbLanes .tllane{padding:1px 4px}#kbLanes .tllbl{display:none}#kbLanes #tlScroll{padding-top:24px}#kbLanes #tlTxtLane{height:30px;margin-top:2px}#kbLanes #tlMusic{height:22px}#kbJog{margin-top:4px}}' +
+    '@media (max-height:500px){#kbDock{padding-top:6px;padding-bottom:6px}#kbLanes #tlTxtLane,#kbLanes .tllane+.tllane{display:none}#kbPlay{width:44px;height:44px}}' +
+    /* stående telefon/surfplatta: panelens innehåll får mindre plats så filmen behåller minst ~40 % av höjden */
+    '@media (orientation:portrait){body.kbon .panel .sheet{max-height:14dvh}}';
   document.head.append(el('style', { text: css }));
   var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
   var dock = KBDOCK;
   var play = el('button', { type: 'button', id: 'kbPlay', 'aria-label': 'Spela', html: PLAY, onclick: function () { if (V.playing || TL.playing) pauseVideo(); else playVideo(); kbUpd(true); } });
   var time = el('span', { id: 'kbTime', text: '0:00,0 / 0:00' });
+  var FSI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  var fs = el('button', { type: 'button', id: 'kbFs', 'aria-label': 'Helskärm', title: 'Helskärm', html: FSI, onclick: function () { if (window.vfsToggle) vfsToggle(); } }); // v22d (L3)
   var split = el('button', { type: 'button', class: 'btn sm', id: 'kbSplit', text: '✂ Dela här', onclick: function () { if (V.playing || TL.playing) pauseVideo(); delaAt(); } });
   var del = el('button', { type: 'button', class: 'btn sm', id: 'kbDel', text: '🗑 Ta bort', title: 'Ta bort vald del (Ångra finns)', onclick: function () { if (TL.clips.length < 2) { toast('Det måste finnas minst en del kvar.'); return; } if (V.playing || TL.playing) pauseVideo(); delaRemove(); } });
   var lanes = el('div', { id: 'kbLanes' });
-  var jog = el('div', { id: 'kbJog', role: 'slider', tabindex: 0, 'aria-label': 'Jogghjul: dra för att stega ruta för ruta' }, [el('span', { text: '◀ ruta ▶' })]);
-  dock.append(el('div', { id: 'kbBar' }, [play, time, split, del]), lanes, jog);
-  var vb = $('#vbar'); vb.parentNode.insertBefore(dock, vb.nextSibling);
+  var jog = el('div', { id: 'kbJog', role: 'slider', tabindex: 0, 'aria-label': 'Jogghjul: dra för att stega ruta för ruta' }, [el('span', { class: 'jl', text: '◀ ruta ▶' })]);
+  jog.append(time); dock.append(el('div', { id: 'kbBar' }, [play, split, del, fs]), lanes, jog);
+  var pn = document.querySelector('.panel'); pn.insertBefore(dock, pn.firstChild); // v22d (K1): i panelen, inte i filmkortet
   window.KB = { on: false, dock: dock };
   if (window.ResizeObserver) new ResizeObserver(function () { var h = KB.on ? dock.offsetHeight : 0; document.body.style.setProperty('--kbh', h + 'px'); requestAnimationFrame(refit); }).observe(dock);
   function fr() { return 1 / ((window.WCO && WCO.fps) || 30); }
@@ -8500,11 +8507,11 @@ function sesOffer() {
     del.disabled = !TL.on || TL.clips.length < 2; split.disabled = !V.ready; };
   // jogghjul: 10 px = en ruta; snabb dragning ger fler rutor
   var jx = null, acc = 0, base = 0;
-  jog.addEventListener('pointerdown', function (e) { if (!V.ready) return; if (V.playing || TL.playing) pauseVideo(); jx = e.clientX; acc = 0; base = pos(); try { jog.setPointerCapture(e.pointerId); } catch (er) {} e.preventDefault(); });
+  jog.addEventListener('pointerdown', function (e) { if (!V.ready) return; if (V.playing || TL.playing) pauseVideo(); jx = e.clientX; acc = 0; base = Math.floor(pos() / fr() + 1e-3); try { jog.setPointerCapture(e.pointerId); } catch (er) {} e.preventDefault(); });
   jog.addEventListener('pointermove', function (e) { if (jx == null) return; var dx = e.clientX - jx; jx = e.clientX; acc += dx; jog.style.backgroundPosition = acc + 'px 0';
-    var n = Math.trunc(acc / 10); if (!n) return; var L = TL.on ? V.end : (V.end - V.start); var p = Math.max(0, Math.min(L - 0.001, base + n * fr())); seekTo(p); kbUpd(); });
+    var n = Math.trunc(acc / 10); if (!n) return; var L = TL.on ? V.end : (V.end - V.start); var p = Math.max(0, Math.min(L - 0.001, (base + n + 0.5) * fr())); seekTo(p); kbUpd(); }); // v22d (J1): mitt i rutan, (n+0,5)/fps – exakt n/fps visade ruta n−1 i Chromium (flyttal)
   function up() { jx = null; } jog.addEventListener('pointerup', up); jog.addEventListener('pointercancel', up);
-  jog.addEventListener('keydown', function (e) { var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!d) return; e.preventDefault(); if (V.playing || TL.playing) pauseVideo(); var L = TL.on ? V.end : (V.end - V.start); seekTo(Math.max(0, Math.min(L - 0.001, pos() + d * fr() * (e.shiftKey ? 10 : 1)))); kbUpd(); });
+  jog.addEventListener('keydown', function (e) { var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!d) return; e.preventDefault(); if (V.playing || TL.playing) pauseVideo(); var L = TL.on ? V.end : (V.end - V.start); var k = Math.floor(pos() / fr() + 1e-3) + d * (e.shiftKey ? 10 : 1); seekTo(Math.max(0, Math.min(L - 0.001, (k + 0.5) * fr()))); kbUpd(); });
   // tidslinjens spår flyttas från panelen till dockan (byggs om av tlUI)
   function park() { if (!KB.on) return; var l = tlPane.querySelector('.tllanes'); if (l) { lanes.innerHTML = ''; lanes.append(l); } }
   var _u = tlUI; tlUI = function () { var r = _u.apply(this, arguments); try { park(); kbUpd(true); } catch (e) {} return r; };
@@ -8517,7 +8524,7 @@ function sesOffer() {
     if (id === 'v-board') { if (V.ready && !TL.on) tlEnable(); _o.call(this, 'v-timeline'); videoTool = 'v-board';
       [].forEach.call(document.querySelectorAll('.tools button'), function (b) { b.classList.toggle('on', b === btn); });
       KB.on = true; document.body.classList.add('kbon'); var h = tlPane.querySelector('h3'); tlUI(); h = tlPane.querySelector('h3'); if (h) h.textContent = 'Klippbord'; kbUpd(true); requestAnimationFrame(refit); return; }
-    if (KB.on && id.charAt(0) === 'v') { KB.on = false; document.body.classList.remove('kbon'); var l = lanes.querySelector('.tllanes'); if (l) tlPane.insertBefore(l, tlPane.querySelector('#tlInfo')); }
+    if (KB.on && id.charAt(0) === 'v') { KB.on = false; document.body.classList.remove('kbon'); requestAnimationFrame(refit); var l = lanes.querySelector('.tllanes'); if (l) tlPane.insertBefore(l, tlPane.querySelector('#tlInfo')); }
     return _o.apply(this, arguments); };
   var _sm = setMode; setMode = function (m) { if (m !== 'video' && KB.on) { KB.on = false; document.body.classList.remove('kbon'); } return _sm.apply(this, arguments); };
   // rubriken i panelen
@@ -8528,7 +8535,7 @@ function sesOffer() {
   var _pv = playVideo; playVideo = function () { var r = _pv.apply(this, arguments); if (KB.on) kbUpd(); return r; };
   var _pz = pauseVideo; pauseVideo = function () { var r = _pz.apply(this, arguments); if (KB.on) kbUpd(); return r; };
   // hjälpen
-  var _h = openHelp; openHelp = function () { var r = _h.apply(this, arguments); var b = document.querySelector('#helpSheet .helpbox'); if (b && !b.querySelector('#kbHelp')) b.insertBefore(el('p', { class: 'info', id: 'kbHelp', text: 'Klippbord (film): tidslinjen ligger fast under filmen. Gula kanter: dra för att ändra längden på vald del. ✂ Dela här delar vid spelhuvudet, 🗑 Ta bort tar bort vald del (Ångra finns). Jogghjulet: dra åt sidan för att stega ruta för ruta (← → på tangentbordet). Spelknappen syns alltid.' }), b.children[2] || null); return r; };
+  var _h = openHelp; openHelp = function () { var r = _h.apply(this, arguments); var b = document.querySelector('#helpSheet .helpbox'); if (b && !b.querySelector('#kbHelp')) b.insertBefore(el('p', { class: 'info', id: 'kbHelp', text: 'Klippbord (film): tidslinjen ligger fast under filmen (bredvid när telefonen ligger) och täcker aldrig bilden. Gula kanter: dra för att ändra längden på vald del. ✂ Dela här delar vid spelhuvudet, 🗑 Ta bort tar bort vald del (Ångra finns). Jogghjulet: dra åt sidan för att stega ruta för ruta (← → på tangentbordet). Spelknappen syns alltid, och ⛶ ger helskärm.' }), b.children[2] || null); return r; };
 })();
 
 </script>
