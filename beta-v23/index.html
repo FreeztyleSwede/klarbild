@@ -2818,6 +2818,7 @@ function renderVideo() {
     videoCanvas.style.filter = V.compare ? 'none' : cssFilterFor(V.holdLook || V.look);
   }
   if (!V.compare) { if (typeof drawTextAnim === 'function') drawTextAnim(vctx, w, h, V.text); else drawTitle(vctx, w, h, V.text); if (typeof drawWatermark === 'function') drawWatermark(vctx, w, h); if (V.text._drag) drawTextGuides(vctx, V.text, w / Math.max(1, videoCanvas.getBoundingClientRect().width)); }
+  if (window.fadePreview) fadePreview(vctx, w, h);
   updateVTime();
 }
 /* Ritar en bildruta från src (video) genom shadern med justeringarna st till V.glc (w×h). Används av enskild film och tidslinjen (v13). */
@@ -5429,7 +5430,7 @@ function tlClock() { return AC ? AC.currentTime : performance.now() / 1000; }
 function tlSync(seekOnly) {
   /* v22: filmen är klockan. Den ledande delens <video> styr TL.pos (tlLoop), så den söks aldrig om under uppspelning –
      förut jagade vi väggklockan och sökte om så fort elementet låg > 0,3 s efter (≈ en gång per sekund på iPhone = ryck). */
-  var act = tlActive(TL.pos), ids = {}, els = new Set(), lead = TL.playing ? TL.lead : null;
+  var act = tlActive(Math.min(TL.pos, Math.max(0, V.end - 0.001))), ids = {}, els = new Set(), lead = TL.playing ? TL.lead : null;
   act.forEach(function (a) {
     ids[a.c.id] = 1; var e = a.c.el; if (a.c.gain) a.c.gain.gain.value = Math.min(a.a, a.ao);
     if (els.has(e)) return; els.add(e); // samma källa i två aktiva delar: första vinner, ingen dragkamp
@@ -5472,6 +5473,7 @@ function tlRender() {
     else if (ok && window.VF) VF.glFail = 0;
   }
   if (!V.compare) { drawTextAnim(vctx, w, h, V.text); drawWatermark(vctx, w, h); if (V.text._drag) drawTextGuides(vctx, V.text, w / Math.max(1, videoCanvas.getBoundingClientRect().width)); }
+  if (window.fadePreview) fadePreview(vctx, w, h);
   updateVTime(); tlDrawPlayhead();
 }
 function tlLoop() {
@@ -6052,6 +6054,7 @@ async function wcExportFilm(sel, dims) {
         else cx.drawImage(fr, (W - cc.dw) / 2, (H - cc.dh) / 2, cc.dw, cc.dh);
       }
       cx.globalAlpha = 1; wcText(cx, W, H, V.text, T); if (window.drawLogos && V.logos.length) drawLogos(cx, W, H, V.logos); if (typeof drawWatermark === 'function') drawWatermark(cx, W, H);
+      if (V.fadeEnd && V.fadeEnd.on) fadeEndDraw(cx, W, H, T + 1 / fps, plan.total); // v23h: uttoning, sista rutan helsvart
       var a1 = performance.now(); tA += a1 - a0;
       await vsrc.add(T, 1 / fps); tE += performance.now() - a1; X.frames++;
       if (n % 5 === 0 || n === N - 1) wcProgress(X, (X.pre || 0) + (1 - (X.pre || 0)) * (n + 1) / N, 'Exporterar film');
@@ -6248,6 +6251,7 @@ async function wcAudioPrep(plan, caps, X) {
     });
     var r = await oc.startRendering(), data = new Float32Array(len * CH);
     for (var ch = 0; ch < CH; ch++) data.set(r.getChannelData(Math.min(ch, r.numberOfChannels - 1)), ch * len);
+    if (V.fadeEnd && V.fadeEnd.on) fadeEndPcm(data, len, CH, SR, i0, total); // v23h
     for (var q = 0; q < len; q += 4096) { // små bitar: kodaren får rätt tidsstämplar och kön hålls kort
       var m = Math.min(4096, len - q), sub = new Float32Array(m * CH);
       for (ch = 0; ch < CH; ch++) sub.set(data.subarray(ch * len + q, ch * len + q + m), ch * m);
@@ -6957,6 +6961,7 @@ videoEl.addEventListener('playing', function () { var u = V.url; setTimeout(func
     if (VF.mode === 'direct') {
       vfPlace(); vctx.clearRect(0, 0, V.w, V.h);
       if (!V.compare) { if (typeof drawTextAnim === 'function') drawTextAnim(vctx, V.w, V.h, V.text); if (typeof drawWatermark === 'function') drawWatermark(vctx, V.w, V.h); }
+      if (window.fadePreview) fadePreview(vctx, V.w, V.h);
       updateVTime(); return;
     }
     if (VF.mode === 'none') { updateVTime(); return; }
@@ -8252,7 +8257,7 @@ function tlDelMarked() {
   }, true);
   P.addEventListener('pointermove', function (e) {
     var s = S; if (!s || e.pointerId !== s.id) return; e.stopPropagation(); var dx = e.clientX - s.x;
-    if (!s.on) { if (Math.abs(dx) < 8) { if (Math.abs(e.clientY - s.y) > 10) S = null; return; } s.on = true; window.TLSCRUB = true; s.x = e.clientX; dx = 0; if (s.was) pauseVideo(); try { e.target.setPointerCapture(s.id); } catch (er) {} document.body.classList.add('tlscrub'); }
+    if (!s.on) { if (Math.abs(dx) < 10) { if (Math.abs(e.clientY - s.y) > 10) S = null; return; } s.on = true; window.TLSCRUB = true; s.x = e.clientX; dx = 0; if (s.was) pauseVideo(); try { e.target.setPointerCapture(s.id); } catch (er) {} document.body.classList.add('tlscrub'); }
     var now = performance.now(); (s.hist = s.hist || []).push([now, e.clientX]); while (s.hist.length > 2 && now - s.hist[0][0] > 120) s.hist.shift(); s.lx = e.clientX; s.lt = now;
     s.want = s.t0 - dx / s.k; if (!raf) raf = requestAnimationFrame(apply);
   }, true);
@@ -8511,7 +8516,7 @@ function sesSnap() {
   if (!V.ready || !TL.clips.length || !TL.clips[0].file) return null; var files = [], ids = [];
   TL.clips.forEach(function (c) { if (c.file && files.indexOf(c.file) < 0) { files.push(c.file); ids.push(sesFileId(c.file)); } });
   return { v: 1, t: Date.now(), on: TL.on, sel: TL.sel, vs: V.start, ve: V.end, ids: ids, names: files.map(function (f) { return f.name; }), look: JSON.parse(JSON.stringify(V.look)),
-    slow: JSON.parse(JSON.stringify(V.slow || {})), text: V.text ? JSON.parse(JSON.stringify(V.text)) : null,
+    slow: JSON.parse(JSON.stringify(V.slow || {})), text: V.text ? JSON.parse(JSON.stringify(V.text)) : null, fade: V.fadeEnd ? { on: !!V.fadeEnd.on, d: V.fadeEnd.d } : null,
     clips: TL.clips.map(function (c) { return { f: files.indexOf(c.file), inn: c.inn, out: c.out, cut: !!c.cut, name: c.name, look: JSON.parse(JSON.stringify(c.look || {})), slow: c.slow ? JSON.parse(JSON.stringify(c.slow)) : null }; }), files: files };
 }
 function sesSave() { // fördröjd och i vila – aldrig under uppspelning eller medan användaren drar
@@ -8562,6 +8567,7 @@ function sesRestore(s, files) {
         if (s.slow && V.slow) Object.assign(V.slow, s.slow); tlApplyRange(); tlSelect(Math.min(s.sel || 0, TL.clips.length - 1)); if (window.delaRefresh) delaRefresh();
       }
       if (s.text && V.text) Object.assign(V.text, s.text);
+      if (s.fade && V.fadeEnd) { V.fadeEnd.on = !!s.fade.on; V.fadeEnd.d = +s.fade.d || 1.5; if (window.fadeEndUI) fadeEndUI(); }
       toast('Filmen är återställd – du kan fortsätta redigera.');
     } catch (e) { toast('Kunde inte återställa allt: ' + (e && e.message || e)); }
     SES.restoring = false; requestVideoRender(); sesSave();
@@ -8746,6 +8752,35 @@ window.addEventListener('resize', function () { setTimeout(kbLogPlace, 50); }); 
   openHelp = function () { var r = _oh.apply(this, arguments); var b = document.querySelector('#helpSheet .helpbox');
     if (b && !b.querySelector('#kbLogOpen')) b.append(el('button', { type: 'button', class: 'btn', id: 'kbLogOpen', style: 'min-height:44px;margin-top:8px', text: 'Visa logg (felsökning)', onclick: function () { var h = document.getElementById('helpSheet'); if (h) h.remove(); kbLogShow(); } }));
     return r; }; })();
+
+/* v23h: Tona ut till svart i slutet av filmen. Samma kurva i förhandsvisning, skrubb och export (bild + ljud).
+   alfa(t) = (t − (L − d)) / d, begränsad till 0..1. Export: t = rutans sluttid (T + 1/fps) → sista rutan helsvart. Ljud: förstärkning 1 − alfa. */
+V.fadeEnd = V.fadeEnd || { on: false, d: 1.5 };
+function fadeEndA(t, L) { var f = V.fadeEnd; if (!f || !f.on || !(L > 0)) return 0; var d = Math.max(0.05, Math.min(f.d, L)); return Math.max(0, Math.min(1, (t - (L - d)) / d)); }
+function fadeEndDraw(ctx, w, h, t, L) { var a = fadeEndA(t, L); if (a <= 0) return a; ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.restore(); return a; }
+function fadeEndPosL() { return TL.on ? [TL.pos, V.end] : [(videoEl.currentTime || 0) - (V.start || 0), (V.end || 0) - (V.start || 0)]; }
+var FADEG = { mod: false };
+function fadePreview(ctx, w, h) { // anropas sist i förhandsvisningens ritning
+  var pl = fadeEndPosL(), a = fadeEndDraw(ctx, w, h, pl[0], pl[1]);
+  if (typeof vidGain === 'undefined' || !vidGain) return;
+  if (a > 0 || FADEG.mod) { var g = 1 - a; vidGain.gain.value = (V._slowMute ? 0 : V.videoVol / 100) * g; if (musGain) musGain.gain.value = V.musicVol / 100 * g; FADEG.mod = a > 0; }
+}
+// export: ljudet tonas ut med samma kurva (anropas på färdigrenderade PCM-data)
+function fadeEndPcm(data, len, CH, SR, i0, total) {
+  if (!V.fadeEnd || !V.fadeEnd.on) return; var d = Math.max(0.05, Math.min(V.fadeEnd.d, total)), s0 = Math.max(0, Math.floor((total - d) * SR) - i0);
+  for (var q = s0; q < len; q++) { var t = (i0 + q) / SR, g = Math.max(0, Math.min(1, (total - t) / d)); for (var ch = 0; ch < CH; ch++) data[ch * len + q] *= g; }
+}
+(function () { // knapp i Klippbord: på jogghjulets rad, till höger om hjulet (inte i #kbBar, och dockan blir inte högre – bildytan krymper inte)
+  var dock = window.KB && KB.dock; if (!dock) return;
+  document.head.append(el('style', { text: '#kbFadeRow{display:flex;align-items:center;gap:8px;margin-top:6px}#kbFadeRow #kbJog{flex:1 1 auto;min-width:150px;margin-top:0}@media (max-width:430px),(max-height:500px){#kbFadeRow{margin-top:4px}}#kbFadeRow button,#kbFadeRow select{min-height:44px;font-size:14px}#kbFade{flex:none;padding:0 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit}#kbFade[aria-pressed=true]{background:#ffd34d;color:#111;border-color:#ffd34d}#kbFadeLen{flex:none;padding:0 8px;border-radius:10px}#kbFadeLen:disabled{opacity:.4}' }));
+  var len = el('select', { id: 'kbFadeLen', 'aria-label': 'Uttoningens längd', title: 'Uttoningens längd' });
+  [0.5, 1, 1.5, 2, 2.5, 3].forEach(function (v) { var o = el('option', { value: String(v), text: String(v).replace('.', ',') + ' s' }); len.append(o); });
+  var btn = el('button', { type: 'button', id: 'kbFade', 'aria-pressed': 'false', 'aria-label': 'Tona ut till svart', title: 'Tona ut till svart i slutet', text: '◐ Tona ut' });
+  function upd() { btn.setAttribute('aria-pressed', V.fadeEnd.on ? 'true' : 'false'); len.value = String(V.fadeEnd.d); len.disabled = !V.fadeEnd.on; }
+  btn.addEventListener('click', function () { V.fadeEnd.on = !V.fadeEnd.on; upd(); if (window.requestVideoRender) requestVideoRender(); if (window.sesSave) sesSave(); });
+  len.addEventListener('change', function () { V.fadeEnd.d = parseFloat(len.value) || 1.5; if (window.requestVideoRender) requestVideoRender(); if (window.sesSave) sesSave(); });
+  var jog = document.getElementById('kbJog'), row = el('div', { id: 'kbFadeRow' }); jog.before(row); row.append(jog, btn, len); upd(); window.fadeEndUI = upd;
+})();
 
 </script>
 </body>
