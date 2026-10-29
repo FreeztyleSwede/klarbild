@@ -2796,6 +2796,8 @@ function initGL() {
     var u = {};
     ['tex', 'px', 'uCnr', 'uSmo', 'uBri', 'uM', 'uCon', 'uHi', 'uSh', 'uSat', 'uWarm', 'uSharp', 'uClar', 'uVig', 'uBypass', 'uHiR', 'uMidW', 'uT'].forEach(function (n) { u[n] = gl.getUniformLocation(pr, n); });
     gl.uniform1i(u.tex, 0); gl.uniformMatrix3fv(u.uT, false, [1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    c.addEventListener('webglcontextlost', function (ev) { ev.preventDefault(); if (window.vfGlLost) vfGlLost('webglcontextlost'); }, false); // v23b (F1)
+    c.addEventListener('webglcontextrestored', function () { if (window.vfGlRestored) vfGlRestored(); }, false);
     V.gl = gl; V.glc = c; V.u = u; V.tex = tex; V.prog = pr; V.vbuf = buf; V.aloc = loc;
     return true;
   } catch (e) { console.warn('WebGL ej tillgängligt:', e); V.gl = null; return false; }
@@ -2807,6 +2809,7 @@ function cssFilterFor(st) { // endast ungefärlig reserv om WebGL saknas (följe
 function renderVideo() {
   if (!V.ready || videoEl.readyState < 2) return;
   var w = V.w, h = V.h;
+  if (V.gl && V.gl.isContextLost && V.gl.isContextLost() && window.vfGlLost) vfGlLost('isContextLost');
   if (V.gl) {
     if (!glFrame(videoEl, V.holdLook || V.look, V.compare, w, h)) return;
     vctx.drawImage(V.glc, 0, 0, w, h);
@@ -2821,6 +2824,7 @@ function renderVideo() {
 function glFrame(src, st, bypass, w, h) {
   {
     var gl = V.gl, u = V.u;
+    if (!gl || (gl.isContextLost && gl.isContextLost())) { V.glLostSeen = 1; return false; } // v23b (F1): förlorad kontext ritar ingenting – aldrig "true"
     if (V.glc.width !== w || V.glc.height !== h) { V.glc.width = w; V.glc.height = h; }
     gl.viewport(0, 0, w, h);
     if (V.glPre) { if (!V.glPre(src, w, h)) return false; } // v15 P6: förbättringspass har redan lagt sin bild i textur 0
@@ -5442,6 +5446,7 @@ function tlRender() {
   /* v22f: svart bild i Klippbord (iPad Safari). Tidslinjen ritade alltid via WebGL och fyllde svart först: (1) iPhone-filmer (HEVC/HDR) där
      vfix bytt till '2d' eller 'direct' gav bara svart + vattenmärke; (2) under sökning (readyState < 2) blev varannan ruta svart.
      Nu: samma kedja som enkelfilmen (gl → 2d → videon direkt), och rita aldrig från ett element som inte är redo – behåll då senaste bilden. */
+  if (V.gl && V.gl.isContextLost && V.gl.isContextLost() && window.vfGlLost) vfGlLost('isContextLost'); // v23b (F1): byt till 2d innan ritning
   var mode = window.VF ? VF.mode : 'gl', H = V.tlHold || (V.tlHold = document.createElement('canvas'));
   if (mode === 'direct' && window.tlDirect) { tlDirect(act); vctx.clearRect(0, 0, w, h); }
   else {
@@ -5457,7 +5462,9 @@ function tlRender() {
       });
       vctx.restore();
     }
-    V.gl = g;
+    V.gl = (g && g.isContextLost && g.isContextLost()) ? null : g;
+    if (!ok && V.glLostSeen && window.vfGlLost) { V.glLostSeen = 0; if (g && g.isContextLost && g.isContextLost()) { V.gl = g; vfGlLost('glFrame'); V.tlHoldN = 0; return tlRender(); } } // v23b (F1): sparad bild får inte dölja en förlorad kontext
+    if (ok) V.tlHoldN = 0; else if (++V.tlHoldN > 90 && window.kbLog && V.tlHoldN % 90 === 1) kbLog('bilden hålls kvar (' + V.tlHoldN + ' rutor), läge ' + mode);
     if (ok) { if (H.width !== w || H.height !== h) { H.width = w; H.height = h; } H.getContext('2d').drawImage(videoCanvas, 0, 0); V.tlHoldOk = 1; }
     else if (V.tlHoldOk && H.width === w && H.height === h) { vctx.clearRect(0, 0, w, h); vctx.drawImage(H, 0, 0); } // senaste giltiga bild
     else if (!V.tlHoldOk) { vctx.fillStyle = '#000'; vctx.fillRect(0, 0, w, h); }
@@ -5619,7 +5626,7 @@ function tlUI() {
       el('button', { type: 'button', class: 'btn', text: '◀ Tidigare', disabled: TL.sel === 0, onclick: function () { tlMove(TL.sel, TL.sel - 1); } }),
       el('button', { type: 'button', class: 'btn', text: 'Senare ▶', disabled: TL.sel === TL.clips.length - 1, onclick: function () { tlMove(TL.sel, TL.sel + 1); } }),
       el('button', { type: 'button', class: 'btn', text: 'Justera klippet', onclick: function () { openTool('v-adjust'); } }),
-      el('button', { type: 'button', class: 'btn', text: 'Ta bort', disabled: TL.clips.length < 2, onclick: function () { tlRemove(TL.sel); } })]),
+      el('button', { type: 'button', class: 'btn', text: 'Ta bort', 'aria-label': 'Ta bort del ur tidslinjen', disabled: TL.clips.length < 2, onclick: function () { tlRemove(TL.sel); } })]),
       el('p', { class: 'info', style: 'margin:6px 0 0', text: 'Justera-fliken ändrar bara det valda klippet.' }));
     p.append(card);
   }
@@ -6040,7 +6047,7 @@ async function wcExportFilm(sel, dims) {
         if (!fr) continue;
         cx.globalAlpha = j === 0 ? 1 : act[j].a;
         if (V.gl) { if (window.wcFrameFx) wcFrameFx(cc, fidx, fr); var ok = glFrame(fr, window.wcLookFx ? wcLookFx(cc.look) : cc.look, false, cc.dw, cc.dh); V.glT = null; V.glExpK = 1; V.glPre = null;
-          if (ok) cx.drawImage(V.glc, (W - cc.dw) / 2, (H - cc.dh) / 2, cc.dw, cc.dh); }
+          if (ok) cx.drawImage(V.glc, (W - cc.dw) / 2, (H - cc.dh) / 2, cc.dw, cc.dh); else if (V.gl && V.gl.isContextLost && V.gl.isContextLost()) cx.drawImage(fr, (W - cc.dw) / 2, (H - cc.dh) / 2, cc.dw, cc.dh); } // v23b: förlorad kontext → ojusterad ruta i stället för svart
         else cx.drawImage(fr, (W - cc.dw) / 2, (H - cc.dh) / 2, cc.dw, cc.dh);
       }
       cx.globalAlpha = 1; wcText(cx, W, H, V.text, T); if (window.drawLogos && V.logos.length) drawLogos(cx, W, H, V.logos); if (typeof drawWatermark === 'function') drawWatermark(cx, W, H);
@@ -6953,7 +6960,7 @@ videoEl.addEventListener('playing', function () { var u = V.url; setTimeout(func
     }
     if (VF.mode === 'none') { updateVTime(); return; }
     var g = V.gl; if (VF.mode === '2d') { V.gl = null; videoCanvas.style.filter = ''; }
-    try { oRV(); } finally { V.gl = g; }
+    try { oRV(); } finally { V.gl = (g && g.isContextLost && g.isContextLost()) ? null : g; }
     if (VF.mode === 'gl' && VF.glFail >= 2) { VF.mode = '2d'; return requestVideoRender(); }
     vfCheck();
   };
@@ -6989,6 +6996,20 @@ function tlDirect(act) {
   var w = wrap.getBoundingClientRect(), r = videoCanvas.getBoundingClientRect(), s = e.style;
   s.left = (r.left - w.left + wrap.scrollLeft) + 'px'; s.top = (r.top - w.top + wrap.scrollTop) + 'px'; s.width = r.width + 'px'; s.height = r.height + 'px';
   s.filter = V.compare ? 'none' : cssFilterFor((act && act[0] && act[0].c.look) || V.look);
+}
+
+/* v23b (F1): förlorad WebGL-kontext (iOS Safari vid minnestryck/bakgrund). Byt genast till 2d så bilden följer tiden; försök WebGL igen när kontexten återställs. */
+function vfGlLost(why) {
+  if (!V.gl && VF.glLost) return; VF.glLost = (VF.glLost || 0) + 1; V.gl = null; V.glLostSeen = 0;
+  if (VF.mode === 'gl') VF.mode = '2d'; VF.glFail = 0;
+  if (window.kbLog) kbLog('WebGL-kontext förlorad (' + why + ') – visar via 2d');
+  if (window.TL && TL.on && !TL.playing) { try { tlRender(); } catch (e) {} } else if (window.requestVideoRender) requestVideoRender();
+}
+function vfGlRestored() {
+  var ok = false; try { ok = initGL(); } catch (e) {}
+  if (window.kbLog) kbLog('WebGL-kontext återställd – ' + (ok ? 'WebGL igen' : 'fortsätter i 2d'));
+  if (ok && VF.mode === '2d' && VF.glLost) VF.mode = 'gl';
+  if (window.TL && TL.on && !TL.playing) { try { tlRender(); } catch (e) {} } else if (window.requestVideoRender) requestVideoRender();
 }
 
 /* v16: Rensa – måla med fingret (eller musen) över en defekt; den fylls med omgivningen (PatchMatch i flera skalor, i en worker).
@@ -8270,13 +8291,16 @@ function pxWorkerSrc() {
   var poly = 'if(typeof AudioBuffer==="undefined"){self.AudioBuffer=function(o){this.numberOfChannels=o.numberOfChannels;this.length=o.length;this.sampleRate=o.sampleRate;this.duration=o.length/o.sampleRate;this._c=[];for(var i=0;i<o.numberOfChannels;i++)this._c.push(new Float32Array(o.length))};' +
     'AudioBuffer.prototype.getChannelData=function(i){return this._c[i]};AudioBuffer.prototype.copyToChannel=function(s,i,o){this._c[i].set(s.subarray(0,this.length-(o||0)),o||0)};AudioBuffer.prototype.copyFromChannel=function(d,i,o){d.set(this._c[i].subarray(o||0,(o||0)+d.length))}}\n'; // v22: AudioBuffer saknas i worker
   var code = poly + mb + '\n' + wcAsc.toString() + '\n' + wcAudioMeta.toString() + '\n' + pxCore.toString() + '\n' +
-    'self.onmessage=async function(ev){var d=ev.data;try{if(!self.VideoEncoder||!self.VideoDecoder||!self.AudioEncoder||!self.OffscreenCanvas)throw new Error("noworker");' +
-    'var r=await pxCore(d.file,d.H,function(){return d.slow?new Promise(function(z){setTimeout(z,0)}):null},function(p){self.postMessage({prog:p})},d.min);' +
+    'self.onmessage=async function(ev){var d=ev.data;if(d.pause!=null){self.P=d.pause;return}try{if(!self.VideoEncoder||!self.VideoDecoder||!self.AudioEncoder||!self.OffscreenCanvas)throw new Error("noworker");' +
+    'var r=await pxCore(d.file,d.H,function(){if(self.P)return new Promise(function(z){(function q(){self.P?setTimeout(q,200):z()})()});return d.slow?new Promise(function(z){setTimeout(z,0)}):null},function(p){self.postMessage({prog:p})},d.min);' +
     'self.postMessage({done:r},r&&r.buf?[r.buf]:[])}catch(e){self.postMessage({err:String(e&&e.message||e)})}};';
   return (VPX.wsrc = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
 }
 /* v22f: avbryt proxyn om den går långsammare än realtid (mätt efter 5 s) – då hjälper den inte och tar bara CPU från uppspelningen */
-function pxSlow(J) { var el = (performance.now() - J.t0) / 1000; if (el < 5 || J.prog >= 1) return false; var d = 0; TL.clips.forEach(function (c) { if (c.file === J.file) d = Math.max(d, c.dur || 0); }); d = d || V.dur || 0;
+/* v23b (F2): under uppspelning pausas bygget (workern väntar, ingen CPU) och fortsätter sedan där det var – startas aldrig om från 0 %. Paustiden räknas inte i farten. */
+function pxPause(J, b) { if (!J || J.cancelled || !!J.paused === b) return; var n = performance.now();
+  if (b) { J.paused = n; } else { J.t0 += n - J.paused; J.paused = 0; } J.pauses = (J.pauses || 0) + (b ? 1 : 0); if (J.pauseW) J.pauseW(b); if (window.kbLog) kbLog('proxy ' + (b ? 'pausad' : 'fortsätter') + ' vid ' + Math.round((J.prog || 0) * 100) + ' %'); }
+function pxSlow(J) { if (J.paused) return false; var el = (performance.now() - J.t0) / 1000; if (el < 5 || J.prog >= 1) return false; var d = 0; TL.clips.forEach(function (c) { if (c.file === J.file) d = Math.max(d, c.dur || 0); }); d = d || V.dur || 0;
   J.rate = d ? J.prog * d / el : 0; return !!d && J.rate < 1; }
 function pxMake(file) { // → Promise<{url,w,h,...}|null>; VPX.job.cancel() avbryter (worker avslutas direkt)
   var J = VPX.job = { file: file, t0: performance.now(), prog: 0, cancelled: false, cancel: null };
@@ -8284,11 +8308,11 @@ function pxMake(file) { // → Promise<{url,w,h,...}|null>; VPX.job.cancel() avb
     VPX.log.push({ name: file.name, src: r.sw + '×' + r.sh, proxy: r.w + '×' + r.h, MB_in: +(file.size / 1e6).toFixed(1), MB_ut: +(blob.size / 1e6).toFixed(1), sek: +sec.toFixed(1), rutor: r.frames, tråd: J.mode });
     return { url: URL.createObjectURL(blob), w: r.w, h: r.h, size: blob.size, sec: sec }; }
   function main() { J.mode = 'huvudtråd'; J.cancel = function () { J.cancelled = true; };
-    return pxCore(file, VPX.H, function () { if (pxSlow(J)) throw new Error('långsam'); if (J.cancelled || pxBusy()) throw new Error('paus'); return new Promise(function (r) { setTimeout(r, 0); }); }, function (p) { J.prog = p; pxUi(); }, VPX.minDur).then(fin); } // ger plats åt appen mellan varje ruta
+    return pxCore(file, VPX.H, function () { if (pxSlow(J)) throw new Error('långsam'); if (J.cancelled) throw new Error('paus'); if (pxBusy()) { pxPause(J, true); return new Promise(function (r) { (function q() { if (J.cancelled || !pxBusy()) { pxPause(J, false); r(); } else setTimeout(q, 250); })(); }); } return new Promise(function (r) { setTimeout(r, 0); }); }, function (p) { J.prog = p; pxUi(); }, VPX.minDur).then(fin); } // ger plats åt appen mellan varje ruta
   var src = !VPX.noWorker && window.Worker && pxWorkerSrc(); if (!src) return main();
   return new Promise(function (res, rej) {
     var w; try { w = new Worker(src); } catch (e) { VPX.noWorker = true; res(main()); return; }
-    J.mode = 'worker'; J.worker = w; J.cancel = function () { J.cancelled = true; try { w.terminate(); } catch (e) {} rej(new Error('paus')); };
+    J.mode = 'worker'; J.worker = w; J.pauseW = function (b) { try { w.postMessage({ pause: b }); } catch (e) {} }; J.cancel = function () { J.cancelled = true; try { w.terminate(); } catch (e) {} rej(new Error('paus')); };
     w.onmessage = function (ev) { var d = ev.data; if (d.prog != null) { J.prog = d.prog; pxUi(); if (pxSlow(J)) { J.cancelled = true; try { w.terminate(); } catch (er) {} rej(new Error('långsam')); } return; } w.terminate();
       if (d.err === 'noworker' || (d.err && /OffscreenCanvas|not defined|document/.test(d.err))) { VPX.noWorker = true; VPX.wErr = d.err; res(main()); return; }
       if (d.err) rej(new Error(d.err)); else res(fin(d.done)); };
@@ -8310,7 +8334,9 @@ function pxApply(file) { var p = VPX.map.get(file); if (!p || !p.url || pxBusy()
   if (window.DELA_UNDO) DELA_UNDO.forEach(function (s) { s.clips.forEach(function (o) { if (o.c.file === file) { o.c.url = p.url; } }); });
   els.forEach(function (e) { if (e.__kbUrl) e.__kbUrl = p.url; pxSwap(e, p.url); }); }
 function pxTick() {
-  if (VPX.job && pxBusy() && VPX.job.cancel && !VPX.job.cancelled) { VPX.job.cancel(); } if (!pxSupported() || VPX.job) return; if (window.TLTH && TLTH.busy) return; // v22: miniatyrerna först – aldrig två avkodare i bakgrunden samtidigt (minne på iPad) if (pxBusy()) { VPX.idle = performance.now(); return; } if (performance.now() - (VPX.idle || 0) < 2000) return; // börja först efter 2 s stillhet
+  if (VPX.job) { var bz = pxBusy(), nw = performance.now(); if (bz) VPX.idle = nw; pxPause(VPX.job, bz || nw - (VPX.idle || 0) < 2000); return; } // v23b (F2): pausa/fortsätt i stället för att avbryta och börja om
+  if (!pxSupported()) return; if (window.TLTH && TLTH.busy) return; // v22: miniatyrerna först – aldrig två avkodare i bakgrunden samtidigt (minne på iPad)
+  if (pxBusy()) { VPX.idle = performance.now(); return; } if (performance.now() - (VPX.idle || 0) < 2000) return; // börja först efter 2 s stillhet
   for (var i = 0; i < TL.clips.length; i++) { var f = TL.clips[i].file; if (!f || VPX.tried.has(f)) continue;
     VPX.tried.add(f); (function (f) { setTimeout(pxUi, 0); pxMake(f).then(function (p) { VPX.job = null; VPX.map.set(f, p || { url: null }); if (p) pxApply(f); pxUi(); }, function (e) { VPX.job = null; var m = String(e && e.message || e); VPX.lastErr = m; if (m === 'paus' && (VPX.restarts = (VPX.restarts || 0) + 1) < 50) { VPX.tried.delete(f); VPX.idle = performance.now(); return; } VPX.map.set(f, { url: null, err: m }); pxUi(); }); })(f); return; }
   VPX.map.forEach(function (p, f) { if (p.url) pxApply(f); }); // element som vaknat/skapats sedan
@@ -8326,7 +8352,7 @@ function pxUi() { // diskret status nere till vänster i bilden
 function pxReset() { if (VPX.job && VPX.job.cancel) VPX.job.cancel(); VPX.map.forEach(function (p) { if (p.url) setTimeout(function () { revokeSafe(p.url); }, 3000); }); VPX.map.clear(); }
 (function () {
   setInterval(pxTick, 1200);
-  ['tlPlay', 'playVideo'].forEach(function (k) { var o = window[k]; if (typeof o === 'function') window[k] = function () { if (VPX.job && VPX.job.cancel && !VPX.job.cancelled) VPX.job.cancel(); VPX.idle = performance.now(); return o.apply(this, arguments); }; }); // uppspelning avbryter bygget direkt
+  ['tlPlay', 'playVideo'].forEach(function (k) { var o = window[k]; if (typeof o === 'function') window[k] = function () { if (VPX.job) pxPause(VPX.job, true); VPX.idle = performance.now(); return o.apply(this, arguments); }; }); // v23b: uppspelning pausar bygget direkt (fortsätter efter stillhet)
   var _lv = loadVideo; loadVideo = function (f) { if (!(window.VPX && VPX.swapping)) { pxReset(); videoEl.__kbOW = videoEl.__kbOH = 0; videoEl.__kbPx = null; } return _lv.apply(this, arguments); };
   var _ex = window.exportVideo; if (typeof _ex === 'function') exportVideo = function () { if (VPX.job && VPX.job.cancel) VPX.job.cancel(); return _ex.apply(this, arguments); };
 })();
@@ -8448,9 +8474,28 @@ function sesSave() { // fördröjd och i vila – aldrig under uppspelning eller
     var s = sesSnap(); if (!s) return; var files = s.files; delete s.files;
     sesReq('f', 'readonly', function (o) { return o.getAllKeys(); }).then(function (keys) {
       keys = keys || []; var need = files.filter(function (f, i) { return keys.indexOf(s.ids[i]) < 0; });
-      return sesReq('f', 'readwrite', function (o) { need.forEach(function (f) { o.put(f, sesFileId(f)); }); keys.forEach(function (k) { if (s.ids.indexOf(k) < 0) o.delete(k); }); }); // gamla källfiler tas bort
+      var old = keys.filter(function (k) { return s.ids.indexOf(k) < 0; });
+      return sesPutFiles(need).then(function () { if (old.length) return sesReq('f', 'readwrite', function (o) { old.forEach(function (k) { o.delete(k); }); }); }); // gamla källfiler tas bort
     }).then(function () { return sesReq('s', 'readwrite', function (o) { o.put(s, 'cur'); }); }).then(function () { SES.saved++; }, function (e) { SES.err = String(e && e.message || e); });
   }, 1200);
+}
+/* v23b: själva filen skrivs till IndexedDB i en worker (egen tråd) – Safari kan kopiera hela blobben vid put(), vilket låste huvudtråden 0,6–1,2 s.
+   Saknas Worker/IndexedDB i worker → samma put på huvudtråden som förut, men i vila (requestIdleCallback). */
+function sesWorker() {
+  if (SES.w !== undefined) return SES.w; SES.w = null;
+  try { var code = 'var D=null;function db(){return D||(D=new Promise(function(a,b){var r=indexedDB.open("kb-session",1);r.onupgradeneeded=function(){var d=r.result;if(!d.objectStoreNames.contains("f"))d.createObjectStore("f");if(!d.objectStoreNames.contains("s"))d.createObjectStore("s")};r.onsuccess=function(){a(r.result)};r.onerror=function(){b(r.error)}}))}' +
+      'onmessage=function(e){var m=e.data;if(!self.indexedDB){postMessage({id:m.id,err:"noidb"});return}db().then(function(d){var tx=d.transaction("f","readwrite"),o=tx.objectStore("f");m.items.forEach(function(x){o.put(x[0],x[1])});tx.oncomplete=function(){postMessage({id:m.id})};tx.onerror=tx.onabort=function(){postMessage({id:m.id,err:String(tx.error)})}},function(er){postMessage({id:m.id,err:String(er)})})}';
+    var w = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' }))), cb = {}; w.__cb = cb; w.__n = 0;
+    w.onmessage = function (e) { var d = e.data, f = cb[d.id]; delete cb[d.id]; if (f) f(d.err); };
+    w.onerror = function (e) { e.preventDefault && e.preventDefault(); SES.w = null; Object.keys(cb).forEach(function (k) { var f = cb[k]; delete cb[k]; f('worker'); }); };
+    SES.w = w; } catch (e) { SES.w = null; }
+  return SES.w;
+}
+function sesPutMain(files) { return new Promise(function (r) { (window.requestIdleCallback || setTimeout)(r, { timeout: 2000 }); }).then(function () { return sesReq('f', 'readwrite', function (o) { files.forEach(function (f) { o.put(f, sesFileId(f)); }); }); }); }
+function sesPutFiles(files) {
+  if (!files.length) return Promise.resolve(); var w = sesWorker(); if (!w) return sesPutMain(files);
+  return new Promise(function (res, rej) { var id = ++w.__n; w.__cb[id] = function (err) { if (!err) { SES.wSaved = (SES.wSaved || 0) + 1; return res(); } SES.wErr = err; SES.w = null; sesPutMain(files).then(res, rej); };
+    try { w.postMessage({ id: id, items: files.map(function (f) { return [f, sesFileId(f)]; }) }); } catch (e) { delete w.__cb[id]; SES.w = null; sesPutMain(files).then(res, rej); } });
 }
 function sesClear() { clearTimeout(SES.t); return sesReq('s', 'readwrite', function (o) { o.delete('cur'); }).then(function () { return sesReq('f', 'readwrite', function (o) { o.clear(); }); }).catch(function () {}); }
 function sesRestore(s, files) {
@@ -8519,8 +8564,10 @@ function sesOffer() {
     /* v22e (S1): knapptexten ryms alltid (ingen bred standardpadding) */
     '#kbSplit,#kbDel{padding-left:8px!important;padding-right:8px!important;white-space:nowrap}' +
     /* v23: Dela här / Ta bort som små diskreta ikonknappar (32 px) med osynlig utökad träffyta (44 px) */
-    '#kbBar #kbSplit,#kbBar #kbDel{position:relative;flex:none;width:40px;min-width:40px;height:40px;min-height:40px;padding:0!important;margin:0;border:0!important;background:transparent!important;box-shadow:none!important;font-size:15px;line-height:1;overflow:visible;opacity:.85;align-self:center;color:#ddd}' +
-    '#kbBar #kbSplit::before,#kbBar #kbDel::before{content:"";position:absolute;left:4px;top:4px;width:32px;height:32px;box-sizing:border-box;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);pointer-events:none;z-index:-1}';
+    '#kbBar #kbSplit,#kbBar #kbDel{position:relative;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:0!important;margin:0;border:0!important;background:transparent!important;box-shadow:none!important;font-size:15px;line-height:1;overflow:visible;opacity:.85;align-self:center;color:#ddd}' +
+    '#kbBar #kbSplit::before,#kbBar #kbDel::before{content:"";position:absolute;left:6px;top:6px;width:32px;height:32px;box-sizing:border-box;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);pointer-events:none;z-index:-1}' +
+    /* v23b (F3): 44 px träffyta; Ta bort ligger sist, skild från Dela här av Helskärm, så ett feltryck bredvid Dela här aldrig tar bort en del */
+    '#kbBar #kbDel{margin-left:12px!important}';
   document.head.append(el('style', { text: css }));
   var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
   var dock = KBDOCK;
@@ -8529,10 +8576,10 @@ function sesOffer() {
   var FSI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
   var fs = el('button', { type: 'button', id: 'kbFs', 'aria-label': 'Helskärm', title: 'Helskärm', html: FSI, onclick: function () { if (window.vfsToggle) vfsToggle(); } }); // v22d (L3)
   var split = el('button', { type: 'button', class: 'btn sm', id: 'kbSplit', text: '✂', title: 'Dela här', 'aria-label': 'Dela här', onclick: function () { if (V.playing || TL.playing) pauseVideo(); delaAt(); } });
-  var del = el('button', { type: 'button', class: 'btn sm', id: 'kbDel', text: '🗑', 'aria-label': 'Ta bort', title: 'Ta bort vald del (Ångra finns)', onclick: function () { if (TL.clips.length < 2) { toast('Det måste finnas minst en del kvar.'); return; } if (V.playing || TL.playing) pauseVideo(); delaRemove(); } });
+  var del = el('button', { type: 'button', class: 'btn sm', id: 'kbDel', text: '🗑', 'aria-label': 'Ta bort markerad del', title: 'Ta bort markerad del (Ångra finns)', onclick: function () { if (TL.clips.length < 2) { toast('Det måste finnas minst en del kvar.'); return; } if (V.playing || TL.playing) pauseVideo(); delaRemove(); } });
   var lanes = el('div', { id: 'kbLanes' });
   var jog = el('div', { id: 'kbJog', role: 'slider', tabindex: 0, 'aria-label': 'Jogghjul: dra för att stega ruta för ruta' }, [el('span', { class: 'jl', text: '◀ ruta ▶' })]);
-  jog.append(time); dock.append(el('div', { id: 'kbBar' }, [play, split, del, fs]), lanes, jog);
+  jog.append(time); dock.append(el('div', { id: 'kbBar' }, [play, split, fs, del]), lanes, jog);
   var pn = document.querySelector('.panel'); pn.insertBefore(dock, pn.firstChild); // v22d (K1): i panelen, inte i filmkortet
   window.KB = { on: false, dock: dock };
   if (window.ResizeObserver) new ResizeObserver(function () { var h = KB.on ? dock.offsetHeight : 0; document.body.style.setProperty('--kbh', h + 'px'); requestAnimationFrame(refit); }).observe(dock);
@@ -8585,19 +8632,31 @@ function kbLog(t) { var s = ((performance.now() - KBLOG.t0) / 1000).toFixed(2); 
 function kbLogDraw() { if (!KBLOG.pre) return; KBLOG.pre.textContent = KBLOG.rows.join('\n') + (KBLOG.last ? '\n— nu: ' + KBLOG.last : ''); KBLOG.pre.scrollTop = KBLOG.pre.scrollHeight; }
 function kbLogShow() {
   KBLOG.on = true; if (!KBLOG.el) {
-    var st = document.createElement('style'); st.textContent = '#kbLog{position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;z-index:9999;background:rgba(10,10,10,.92);color:#cfe;border:1px solid #345;border-radius:10px;font:11px/1.35 ui-monospace,Menlo,monospace;display:flex;flex-direction:column}#kbLog pre{margin:0;padding:8px;overflow:auto;white-space:pre-wrap;flex:1}#kbLog div{display:flex;gap:8px;padding:6px 8px;border-top:1px solid #345}#kbLog button{font:12px system-ui;padding:6px 10px;border-radius:6px;border:1px solid #567;background:#234;color:#fff}'; document.head.append(st);
+    var st = document.createElement('style'); st.textContent = '#kbLog{position:fixed;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));top:calc(8px + env(safe-area-inset-top));max-height:34vh;z-index:9999;background:rgba(10,10,10,.92);color:#cfe;border:1px solid #345;border-radius:10px;font:11px/1.35 ui-monospace,Menlo,monospace;display:flex;flex-direction:column}#kbLog pre{margin:0;padding:6px 8px;min-height:0;overflow:auto;white-space:pre-wrap;flex:1}#kbLog div{display:flex;gap:8px;padding:6px 8px;border-top:1px solid #345}#kbLog button{font:13px system-ui;min-height:44px;min-width:64px;padding:6px 14px;border-radius:6px;border:1px solid #567;background:#234;color:#fff}'; document.head.append(st);
     KBLOG.el = el('div', { id: 'kbLog' }); KBLOG.pre = document.createElement('pre');
     var cp = el('button', { type: 'button', id: 'kbLogCopy', text: 'Kopiera', onclick: function () { var t = 'Klarbild ' + (($('#brandVer') || {}).textContent || '') + ' – ' + navigator.userAgent + '\n' + KBLOG.pre.textContent;
       (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('Loggen kopierad.'); }, function () { var r = document.createRange(); r.selectNodeContents(KBLOG.pre); var s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Markerad – kopiera med Kopiera i menyn.'); }); } });
-    var cl = el('button', { type: 'button', text: 'Stäng', onclick: function () { KBLOG.on = false; KBLOG.el.remove(); } });
+    var cl = el('button', { type: 'button', id: 'kbLogClose', text: 'Stäng', onclick: function () { KBLOG.on = false; KBLOG.el.remove(); } });
     var d = document.createElement('div'); d.append(cp, cl); KBLOG.el.append(KBLOG.pre, d);
   }
-  document.body.append(KBLOG.el); kbLogDraw();
+  document.body.append(KBLOG.el); kbLogPlace(); kbLogDraw();
 }
+/* v23b (F5): loggen läggs över nedre delen av bildytan – aldrig över Klippbords knappar, jogghjulet eller menyknapparna. Utan film: överst innanför safe area. */
+function kbLogPlace() {
+  var L = KBLOG.el; if (!L || !L.isConnected) return; var c = window.videoCanvas, r = c && c.offsetParent && c.getBoundingClientRect(), s = L.style;
+  if (r && r.width > 120 && r.height > 120) { var h = Math.max(110, Math.round(r.height * 0.5)); s.left = Math.round(r.left + 4) + 'px'; s.right = 'auto'; s.width = Math.round(r.width - 8) + 'px'; s.top = Math.round(r.bottom - h - 4) + 'px'; s.maxHeight = h + 'px'; s.height = h + 'px'; }
+  else { s.left = s.right = s.top = s.width = s.height = s.maxHeight = ''; }
+}
+window.addEventListener('resize', function () { setTimeout(kbLogPlace, 50); }); setInterval(function () { if (KBLOG.on) kbLogPlace(); }, 1000);
 (function () {
   kbLog('start – ' + navigator.userAgent.replace(/^Mozilla\/5\.0 /, '') + ' | VideoDecoder ' + (window.VideoDecoder ? 'ja' : 'nej') + ', VideoEncoder ' + (window.VideoEncoder ? 'ja' : 'nej') + ', AudioEncoder ' + (window.AudioEncoder ? 'ja' : 'nej') + ', OffscreenCanvas ' + (window.OffscreenCanvas ? 'ja' : 'nej') + ', kärnor ' + (navigator.hardwareConcurrency || '?'));
   if (/[?&]logg=1/.test(location.search)) setTimeout(kbLogShow, 0);
-  var bv = document.getElementById('brandVer'), taps = [];
+  /* v23b (F4): fem tryck på loggan/varumärket (syns även på telefon där versionsmärket är dolt), eller håll kvar 1 s */
+  var bv = document.querySelector('header.top .brand') || document.getElementById('brandVer'), taps = [], lp = 0;
+  /* håll kvar 1 s på loggan eller på Foto/Film-väljaren (den syns i alla lägen, även liggande telefon där loggan är dold) */
+  [bv, document.getElementById('modeSeg')].forEach(function (h) { if (!h) return; var t0 = 0;
+    h.addEventListener('pointerdown', function () { clearTimeout(lp); t0 = 0; lp = setTimeout(function () { t0 = 1; kbLogShow(); }, 1000); }); ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (k) { h.addEventListener(k, function () { clearTimeout(lp); }); });
+    h.addEventListener('contextmenu', function (e) { e.preventDefault(); }); h.addEventListener('click', function (e) { if (t0 && h.id === 'modeSeg') { t0 = 0; e.stopPropagation(); e.preventDefault(); } }, true); });
   if (bv) bv.addEventListener('click', function () { var n = performance.now(); taps = taps.filter(function (t) { return n - t < 2500; }); taps.push(n); if (taps.length >= 5) { taps = []; kbLogShow(); } });
   // inläsningskedjan
   var _lv = loadVideo; loadVideo = function (f) { if (f) kbLog('filval: ' + f.name + ' (' + (f.size / 1e6).toFixed(1) + ' MB, ' + (f.type || 'okänd typ') + ')'); return _lv.apply(this, arguments); };
@@ -8630,6 +8689,11 @@ function kbLogShow() {
     q0 = drop; fr = 0; iv = []; gapMax = 0; lc = 0; lt = 0;
   }, 1000);
 })();
+/* v23b (F4): knappen Visa logg i hjälpen (?) – nås även på telefon i liggande läge där loggan är dold */
+(function () { var _oh = window.openHelp; if (typeof _oh !== 'function') return;
+  openHelp = function () { var r = _oh.apply(this, arguments); var b = document.querySelector('#helpSheet .helpbox');
+    if (b && !b.querySelector('#kbLogOpen')) b.append(el('button', { type: 'button', class: 'btn', id: 'kbLogOpen', style: 'min-height:44px;margin-top:8px', text: 'Visa logg (felsökning)', onclick: function () { var h = document.getElementById('helpSheet'); if (h) h.remove(); kbLogShow(); } }));
+    return r; }; })();
 
 </script>
 </body>
