@@ -8234,6 +8234,41 @@ function tlDelMarked() {
   P.addEventListener('touchmove', function (e) { if (TLTRIM || (e.target.closest && e.target.closest('.tlh'))) e.preventDefault(); }, { passive: false, capture: true }); // v23e: iOS – remsan rullar inte medan handtaget dras
   P.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.tlh')) { e.stopPropagation(); e.preventDefault(); } }, true); // tryck på handtaget väljer/flyttar aldrig delen
 })();
+/* v23f: Klippbord – swipa remsan för att skrubba (innehållet glider under stillastående spelhuvud, bilden följer), snärt ger glid, kort tryck flyttar spelhuvudet dit och väljer delen. Delar kan inte flyttas med swipe. */
+(function () {
+  var P = TLP; if (!P) return;
+  document.head.append(el('style', { text: 'body.kbon .tltrack.imv,body.kbon .imv .tlclip{touch-action:pan-y!important}body.kbon .tltrack.imv{cursor:grab}' }));
+  var S = null, raf = 0, fl = 0;
+  function pps() { return Math.max(1, tlTrackEl.getBoundingClientRect().width) / Math.max(0.01, V.end); }
+  function apply() { raf = 0; if (!S) return; var t = Math.max(0, Math.min(V.end, S.want)); tlSeek(t); var sc = document.getElementById('tlScroll'); if (sc) sc.scrollLeft = S.sl0 + (t - S.t0) * S.k; }
+  P.addEventListener('pointerdown', function (e) {
+    if (!document.body.classList.contains('kbon') || !TL.on || TLTRIM || e.button > 0) return;
+    var tr = e.target.closest && e.target.closest('.tltrack.imv'); if (!tr || e.target.closest('.tlh,button,.tlflag,input')) return;
+    e.stopPropagation(); cancelAnimationFrame(fl); var sc = document.getElementById('tlScroll');
+    S = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: TL.pos, want: TL.pos, k: pps(), sl0: sc ? sc.scrollLeft : 0, ms: Date.now(), on: false, was: !!(V.playing || TL.playing), v: 0, lx: e.clientX, lt: performance.now() };
+  }, true);
+  P.addEventListener('pointermove', function (e) {
+    var s = S; if (!s || e.pointerId !== s.id) return; e.stopPropagation(); var dx = e.clientX - s.x;
+    if (!s.on) { if (Math.abs(dx) < 8) { if (Math.abs(e.clientY - s.y) > 10) S = null; return; } s.on = true; s.x = e.clientX; dx = 0; if (s.was) pauseVideo(); try { e.target.setPointerCapture(s.id); } catch (er) {} document.body.classList.add('tlscrub'); }
+    var now = performance.now(), dt = Math.max(1, now - s.lt); s.v = 0.7 * s.v + 0.3 * ((e.clientX - s.lx) / dt); s.lx = e.clientX; s.lt = now;
+    s.want = s.t0 - dx / s.k; if (!raf) raf = requestAnimationFrame(apply);
+  }, true);
+  P.addEventListener('touchmove', function (e) { if (S && S.on) e.preventDefault(); }, { passive: false, capture: true });
+  function end(e, cancel) {
+    var s = S; if (!s || e.pointerId !== s.id) return; e.stopPropagation(); S = null; cancelAnimationFrame(raf); raf = 0; document.body.classList.remove('tlscrub');
+    if (cancel) return;
+    if (!s.on) { // kort tryck: hoppa dit och välj delen (ingen delning/flytt)
+      if (Date.now() - s.ms > 600) return; var r = tlTrackEl.getBoundingClientRect(), t = Math.max(0, Math.min(V.end, (e.clientX - r.left) / Math.max(1, r.width) * V.end)), st = tlStarts().s, i = 0;
+      for (var k = 0; k < st.length; k++) if (t >= st[k]) i = k;
+      if (s.was) pauseVideo(); if (i !== TL.sel) { TL.sel = i; tlLoadLook(TL.clips[i]); tlUI(); } tlSeek(t); P.__noclick = Date.now(); return; }
+    P.__noclick = Date.now(); s.want = Math.max(0, Math.min(V.end, s.want)); apply.call(null, S = s); S = null;
+    var v = s.v; if (Math.abs(v) < 0.3) return; var last = performance.now(), sc = document.getElementById('tlScroll');
+    (function step() { var now = performance.now(), dt = now - last; last = now; v *= Math.pow(0.995, dt); if (Math.abs(v) < 0.05 || S) return;
+      var t = Math.max(0, Math.min(V.end, TL.pos - v * dt / s.k)); tlSeek(t); if (sc) sc.scrollLeft -= v * dt; if (t <= 0 || t >= V.end) return; fl = requestAnimationFrame(step); })();
+  }
+  P.addEventListener('pointerup', function (e) { end(e, false); }, true); P.addEventListener('pointercancel', function (e) { end(e, true); }, true);
+  P.addEventListener('click', function (e) { if (P.__noclick && Date.now() - P.__noclick < 400 && e.target.closest && e.target.closest('.tltrack.imv') && !e.target.closest('button')) { e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 
 /* ---------- v22: förhandsvisningsproxy ----------
    Efter import görs i bakgrunden (bara när filmen står still) en lågupplöst kopia (≈540p H.264 + ljud) med WebCodecs/mediabunny.
