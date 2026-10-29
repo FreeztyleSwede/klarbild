@@ -5621,12 +5621,13 @@ function tlUI() {
     var card = el('div', { class: 'card', id: 'tlSelCard' }, [el('b', { text: 'Klipp ' + (TL.sel + 1) + ': ' + c.name })]);
     var sIn = makeSlider({ label: 'Start i klippet', min: 0, max: c.dur, step: 0.1, def: 0, value: c.inn, noMod: true, fmt: fmtTime, onInput: function (v) { c.inn = Math.min(v, c.out - 0.5); tlApplyRange(); tlSeek(tlStarts().s[TL.sel]); } });
     var sOut = makeSlider({ label: 'Slut i klippet', min: 0, max: c.dur, step: 0.1, def: c.dur, value: c.out, noMod: true, fmt: fmtTime, onInput: function (v) { c.out = Math.max(v, c.inn + 0.5); tlApplyRange(); } });
+    sIn.el.classList.add('tllen'); sOut.el.classList.add('tllen'); // v23e: dolda i Klippbord – längden ändras med de gula handtagen
     sIn.el.addEventListener('change', tlUI); sOut.el.addEventListener('change', tlUI);
     card.append(sIn.el, sOut.el, el('div', { class: 'btnrow' }, [
       el('button', { type: 'button', class: 'btn', text: '◀ Tidigare', disabled: TL.sel === 0, onclick: function () { tlMove(TL.sel, TL.sel - 1); } }),
       el('button', { type: 'button', class: 'btn', text: 'Senare ▶', disabled: TL.sel === TL.clips.length - 1, onclick: function () { tlMove(TL.sel, TL.sel + 1); } }),
       el('button', { type: 'button', class: 'btn', text: 'Justera klippet', onclick: function () { openTool('v-adjust'); } }),
-      el('button', { type: 'button', class: 'btn', text: 'Ta bort', 'aria-label': 'Ta bort del ur tidslinjen', disabled: TL.clips.length < 2, onclick: function () { tlRemove(TL.sel); } })]),
+      el('button', { type: 'button', class: 'btn tlcarddel', text: 'Ta bort', 'aria-label': 'Ta bort del ur tidslinjen', disabled: TL.clips.length < 2, onclick: function () { tlRemove(TL.sel); } })]),
       el('p', { class: 'info', style: 'margin:6px 0 0', text: 'Justera-fliken ändrar bara det valda klippet.' }));
     p.append(card);
   }
@@ -7716,7 +7717,7 @@ function slowUi() {
   slowEls.sa = makeSlider({ label: 'Slowmo från', min: 0, max: 1, step: 0.1, def: 0, noMod: true, fmt: fmtTime, onInput: function (v) { if (!dragging) { slowPush(); dragging = true; } slowTgt().a = Math.min(v, slowTgt().b - 0.1); slowUi(); if (!V.playing) slowSeekSrc(slowTgt().a); }, onChange: function () { dragging = false; delaRefresh(); } });
   slowEls.sb = makeSlider({ label: 'Slowmo till', min: 0, max: 1, step: 0.1, def: 0, noMod: true, fmt: fmtTime, onInput: function (v) { if (!dragging) { slowPush(); dragging = true; } slowTgt().b = Math.max(v, slowTgt().a + 0.1); slowUi(); if (!V.playing) slowSeekSrc(Math.max(slowTgt().a, slowTgt().b - 0.05)); }, onChange: function () { dragging = false; delaRefresh(); } });
   function here(k) { if (!V.ready) return; slowPush(); var t = slowHereT(), rg = slowRange(); if (k === 'a') { slowTgt().a = t; if (slowTgt().b <= t + 0.1) slowTgt().b = Math.min(rg[1], t + 1); } else { slowTgt().b = t; if (slowTgt().a >= t - 0.1) slowTgt().a = Math.max(rg[0], t - 1); } slowUi(); }
-  slowEls.undo = el('button', { type: 'button', class: 'btn sm', id: 'slowUndo', text: 'Ångra', onclick: slowUndo });
+  slowEls.undo = el('button', { type: 'button', class: 'btn sm', id: 'slowUndo', text: 'Ångra', 'aria-label': 'Ångra slowmotion', onclick: slowUndo });
   slowEls.more = el('div', { id: 'slowMore', class: 'hidden' }, [slowEls.sa.el, slowEls.sb.el,
     el('div', { class: 'btnrow slowrow' }, [el('button', { type: 'button', class: 'btn sm', id: 'slowHereA', text: 'Börja här', onclick: function () { here('a'); } }), el('button', { type: 'button', class: 'btn sm', id: 'slowHereB', text: 'Sluta här', onclick: function () { here('b'); } }),
       el('button', { type: 'button', class: 'btn sm', id: 'slowAll', text: 'Hela klippet', onclick: function () { slowPush(); var rg = slowRange(); slowTgt().a = rg[0]; slowTgt().b = rg[1]; slowUi(); delaRefresh(); } })]),
@@ -7965,7 +7966,7 @@ function delaBar(id) {
     if (TL.on && tlPane) { var card = $('#tlSelCard'); var bar = delaBar('delaL'); if (card) card.append(bar); else tlPane.append(bar);
       var sc = slowEls.box; if (sc) { if (card) card.after(sc); else tlPane.append(sc); } delaTlMarks(); }
     else { var sc2 = slowEls.box, tp2 = panes['v-trim']; if (sc2 && tp2 && sc2.parentNode !== tp2) tp2.append(sc2); }
-    var u = $('#delaLUndo'), u2 = $('#delaTUndo'); [u, u2].forEach(function (b) { if (b) b.disabled = !DELA_UNDO.length; });
+    var u = $('#delaLUndo'), u2 = $('#delaTUndo'), u3 = $('#kbUndo'); [u, u2, u3].forEach(function (b) { if (b) b.disabled = !DELA_UNDO.length; });
     delaMarks(); return r; };
   var _ut = updateTrimInfo; updateTrimInfo = function () { var r = _ut.apply(this, arguments); delaMarks(); return r; };
   videoEl.addEventListener('loadedmetadata', function () { if (window.VPX && VPX.swapping) return; DELA_UNDO.length = 0; setTimeout(delaMarks, 0); });
@@ -8214,14 +8215,15 @@ function tlDelMarked() {
     var p = TL.clips[i - 1], nx = TL.clips[i + 1], side = h.getAttribute('data-side');
     var lp = side === 'l' && p && c.cut && p.file === c.file && Math.abs(p.out - c.inn) < 1e-3, ln = side === 'r' && nx && nx.cut && nx.file === c.file && Math.abs(nx.inn - c.out) < 1e-3;
     if (TL.playing) tlPause();
-    TLTRIM = { h: h, id: e.pointerId, x: e.clientX, side: side, i: i, c: c, p: lp ? p : null, n: ln ? nx : null, inn: c.inn, out: c.out, pushed: false, W: Math.max(1, tlTrackEl.getBoundingClientRect().width), T: V.end, raf: 0 };
+    TLTRIM = { h: h, id: e.pointerId, x: e.clientX, side: side, i: i, c: c, p: null, n: null, inn: c.inn, out: c.out, pushed: false, W: Math.max(1, tlTrackEl.getBoundingClientRect().width), T: V.end, raf: 0 };
     try { h.setPointerCapture(e.pointerId); } catch (er) {}
   }, true);
   P.addEventListener('pointermove', function (e) {
     var d = TLTRIM; if (!d || e.pointerId !== d.id) return; e.stopPropagation(); var dt = (e.clientX - d.x) / d.W * d.T, c = d.c;
     if (!d.pushed) { if (Math.abs(e.clientX - d.x) < 3) return; d.pushed = true; delaPush(); }
-    if (d.side === 'l') { var lo = d.p ? d.p.inn + 0.3 : 0; c.inn = Math.max(lo, Math.min(c.out - 0.3, d.inn + dt)); if (d.p) d.p.out = c.inn; }
-    else { var hi = d.n ? d.n.out - 0.3 : (c.dur || V.dur); c.out = Math.min(hi, Math.max(c.inn + 0.3, d.out + dt)); if (d.n) d.n.inn = c.out; }
+    /* v23e: handtaget ändrar bara den valda delens in-/utpunkt (aldrig grannen, aldrig flytt/delning), minst 0,5 s, inom källfilmen */
+    var MIN = 0.5, src = c.dur || V.dur || d.out;
+    if (d.side === 'l') c.inn = Math.max(0, Math.min(d.out - MIN, d.inn + dt)); else c.out = Math.min(src, Math.max(d.inn + MIN, d.out + dt));
     if (!d.raf) d.raf = requestAnimationFrame(function () { d.raf = 0; tlApplyRange(); var st = tlStarts(), T = Math.max(0.01, V.end);
       TL.clips.forEach(function (x, k) { var b = tlTrackEl && tlTrackEl.querySelector('.tlclip[data-i="' + k + '"]'); if (b) { b.style.left = (st.s[k] / T * 100) + '%'; b.style.width = (tlLen(x) / T * 100) + '%'; } });
       tlSeek(st.s[d.i] + (d.side === 'l' ? 0.001 : Math.max(0, tlLen(c) - 0.03))); });
@@ -8229,6 +8231,8 @@ function tlDelMarked() {
   function end(e) { var d = TLTRIM; if (!d || e.pointerId !== d.id) return; e.stopPropagation(); TLTRIM = null; cancelAnimationFrame(d.raf); if (!d.pushed) return;
     tlApplyRange(); delaRefresh(); toast((d.side === 'l' ? 'Början' : 'Slutet') + ' av delen flyttad. Ångra finns.'); }
   P.addEventListener('pointerup', end, true); P.addEventListener('pointercancel', end, true);
+  P.addEventListener('touchmove', function (e) { if (TLTRIM || (e.target.closest && e.target.closest('.tlh'))) e.preventDefault(); }, { passive: false, capture: true }); // v23e: iOS – remsan rullar inte medan handtaget dras
+  P.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.tlh')) { e.stopPropagation(); e.preventDefault(); } }, true); // tryck på handtaget väljer/flyttar aldrig delen
 })();
 
 /* ---------- v22: förhandsvisningsproxy ----------
@@ -8564,25 +8568,27 @@ function sesOffer() {
     /* v22e (S1): knapptexten ryms alltid (ingen bred standardpadding) */
     '#kbSplit,#kbDel{padding-left:8px!important;padding-right:8px!important;white-space:nowrap}' +
     /* v23: Dela här / Ta bort som små diskreta ikonknappar (32 px) med osynlig utökad träffyta (44 px) */
-    '#kbBar #kbSplit,#kbBar #kbDel,#kbBar #kbHome{position:relative;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:0!important;margin:0;border:0!important;background:transparent!important;box-shadow:none!important;font-size:15px;line-height:1;overflow:visible;opacity:.85;align-self:center;color:#ddd}' +
-    '#kbBar #kbSplit::before,#kbBar #kbDel::before,#kbBar #kbHome::before{content:"";position:absolute;left:6px;top:6px;width:32px;height:32px;box-sizing:border-box;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);pointer-events:none;z-index:-1}' +
+    '#kbBar #kbSplit,#kbBar #kbDel,#kbBar #kbHome,#kbBar #kbUndo{position:relative;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:0!important;margin:0;border:0!important;background:transparent!important;box-shadow:none!important;font-size:15px;line-height:1;overflow:visible;opacity:.85;align-self:center;color:#ddd}' +
+    '#kbBar #kbSplit::before,#kbBar #kbDel::before,#kbBar #kbHome::before,#kbBar #kbUndo::before{content:"";position:absolute;left:6px;top:6px;width:32px;height:32px;box-sizing:border-box;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);pointer-events:none;z-index:-1}' +
     /* v23b (F3): 44 px träffyta; Ta bort ligger sist, skild från Dela här av Helskärm, så ett feltryck bredvid Dela här aldrig tar bort en del */
-    '#kbBar #kbDel{margin-left:12px!important}';
+    '#kbBar{gap:0!important}#kbBar .kbgap{flex:none;align-self:stretch;width:8px;min-height:44px;cursor:default;touch-action:manipulation}#kbBar .kbgap.wide{width:16px}#kbBar #kbDel{margin-left:0!important}#kbBar #kbUndo:disabled{opacity:.35}body.kbon #delaLUndo,body.kbon #delaL,body.kbon #tlTrash,body.kbon #tlSelCard .tllen,body.kbon #tlSelCard .tlcarddel{display:none!important}';
   document.head.append(el('style', { text: css }));
   var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
   var dock = KBDOCK;
   var play = el('button', { type: 'button', id: 'kbPlay', 'aria-label': 'Spela', html: PLAY, onclick: function () { if (V.playing || TL.playing) pauseVideo(); else playVideo(); kbUpd(true); } });
   var time = el('span', { id: 'kbTime', text: '0:00,0 / 0:00' });
   var FSI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
-  var fs = el('button', { type: 'button', id: 'kbFs', 'aria-label': 'Helskärm', title: 'Helskärm', html: FSI, onclick: function () { if (window.vfsToggle) vfsToggle(); } }); // v22d (L3)
+  var fs = el('button', { type: 'button', id: 'kbFs', 'aria-label': 'Filmen i helskärm', title: 'Filmen i helskärm', html: FSI, onclick: function () { if (window.vfsToggle) vfsToggle(); } }); // v22d (L3)
   var home = el('button', { type: 'button', class: 'btn sm', id: 'kbHome', text: '⏮', title: 'Till början', 'aria-label': 'Till början', onclick: function () { // v23c: spola till början av den redigerade filmen
     var was = V.playing || TL.playing; if (was) pauseVideo(); if (TL.on && window.tlSeek) tlSeek(0); else if (window.seekLatest) seekLatest(V.start || 0); else videoEl.currentTime = V.start || 0;
     if (was) setTimeout(function () { playVideo(); kbUpd(true); }, 0); kbUpd(true); } });
   var split = el('button', { type: 'button', class: 'btn sm', id: 'kbSplit', text: '✂', title: 'Dela här', 'aria-label': 'Dela här', onclick: function () { if (V.playing || TL.playing) pauseVideo(); delaAt(); } });
   var del = el('button', { type: 'button', class: 'btn sm', id: 'kbDel', text: '🗑', 'aria-label': 'Ta bort markerad del', title: 'Ta bort markerad del (Ångra finns)', onclick: function () { if (TL.clips.length < 2) { toast('Det måste finnas minst en del kvar.'); return; } if (V.playing || TL.playing) pauseVideo(); delaRemove(); } });
+  var undo = el('button', { type: 'button', class: 'btn sm', id: 'kbUndo', text: '↶', title: 'Ångra', 'aria-label': 'Ångra', disabled: true, onclick: function () { if (V.playing || TL.playing) pauseVideo(); delaUndo(); } }); // v23d: liten Ångra bredvid Ta bort
   var lanes = el('div', { id: 'kbLanes' });
   var jog = el('div', { id: 'kbJog', role: 'slider', tabindex: 0, 'aria-label': 'Jogghjul: dra för att stega ruta för ruta' }, [el('span', { class: 'jl', text: '◀ ruta ▶' })]);
-  jog.append(time); dock.append(el('div', { id: 'kbBar' }, [play, home, split, fs, del]), lanes, jog);
+  jog.append(time); dock.append(el('div', { id: 'kbBar' }, (function () { /* v23e: mellanrummen är egna "döda" ytor (fångar trycket, gör inget) så pekjusteringen i mobil-Chromium inte träffar närmaste knapp. Ta bort ligger sist, bara granne med Ångra. */
+    var L = [play, home, split, fs, undo, del], o = []; L.forEach(function (b, k) { if (k) o.push(el('span', { class: 'kbgap' + (b === del ? ' wide' : ''), 'aria-hidden': 'true', onclick: function (e) { e.stopPropagation(); e.preventDefault(); } })); o.push(b); }); return o; })()), lanes, jog);
   var pn = document.querySelector('.panel'); pn.insertBefore(dock, pn.firstChild); // v22d (K1): i panelen, inte i filmkortet
   window.KB = { on: false, dock: dock };
   if (window.ResizeObserver) new ResizeObserver(function () { var h = KB.on ? dock.offsetHeight : 0; document.body.style.setProperty('--kbh', h + 'px'); requestAnimationFrame(refit); }).observe(dock);
