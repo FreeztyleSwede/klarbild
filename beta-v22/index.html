@@ -94,7 +94,9 @@ header.top{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
 .vprog div{height:100%;width:0;background:var(--accent);border-radius:3px}
 .vtime{font-variant-numeric:tabular-nums;font-size:15px;color:#dfe5ee;min-width:92px;text-align:right}
 .panel{display:flex;flex-direction:column;background:rgba(20,24,33,.96);border-top:1px solid var(--line);border-radius:22px 22px 0 0;
-  box-shadow:0 -10px 30px rgba(0,0,0,.35);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+  box-shadow:0 -10px 30px rgba(0,0,0,.35)}
+/* v22e (S1): safe area läggs bara på EN gång – #app har redan env() vänster/höger. Bara den fasta panelen i helskärm behöver egen. */
+body.fs .panel{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .sheet{order:1;max-height:40vh;max-height:40dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 8px;overscroll-behavior:contain}
 .tools{order:2;display:flex;gap:2px;padding:4px 6px calc(6px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
 .tools button{appearance:none;border:0;background:transparent;flex:1;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -7810,13 +7812,14 @@ function clipOutT(c, t) { var e = clipSlowEff(c), u = t - c.inn; if (!e || t <= 
 tlLen = function (c) { var e = clipSlowEff(c), L = Math.max(0.2, c.out - c.inn); return e ? L - (e.b - e.a) + (e.b - e.a) / e.f : L; };
 function tlCut(i) { var n = TL.clips[i], p = TL.clips[i - 1]; return !!(n && p && n.cut && p.file === n.file && Math.abs(p.out - n.inn) < 1e-3); } // v22: delning gäller bara när delarna fortfarande ligger i följd (efter flytt/borttagning blir det en övergång)
 function tlXb(i) { var n = TL.clips[i + 1]; return n && !tlCut(i + 1) ? tlX() : 0; } // övergång mellan klipp i och i+1
-tlStarts = function () { var s = [], t = 0; TL.clips.forEach(function (c, i) { var L = tlLen(c), x = Math.min(tlXb(i), L / 2); s.push(t); t += L - (i < TL.clips.length - 1 ? x : 0); }); return { s: s, total: t }; };
+function tlOv(i) { var n = TL.clips[i + 1]; return n ? Math.min(tlXb(i), tlLen(TL.clips[i]) / 2, tlLen(n) / 2) : 0; } // v22e: övertoningen i→i+1 får högst ta halva av BÅDA delarna – annars kunde tre delar överlappa (3 avkodare i exporten)
+tlStarts = function () { var s = [], t = 0; TL.clips.forEach(function (c, i) { s.push(t); t += tlLen(c) - tlOv(i); }); return { s: s, total: t }; };
 tlActive = function (pos) {
   var st = tlStarts(), out = [];
   TL.clips.forEach(function (c, i) {
     var s = st.s[i], L = tlLen(c); if (pos < s - 1e-4 || pos >= s + L) return;
-    var xi = i > 0 ? tlXb(i - 1) : 0, a = 1; if (xi) a = Math.min(1, (pos - s) / Math.min(xi, L / 2));
-    var xo = tlXb(i), ao = 1; if (xo) { var xe = Math.min(xo, L / 2); if (pos > s + L - xe) ao = Math.max(0, (s + L - pos) / xe); }
+    var xi = i > 0 ? tlOv(i - 1) : 0, a = 1; if (xi) a = Math.min(1, (pos - s) / xi);
+    var xo = tlOv(i), ao = 1; if (xo) { var xe = xo; if (pos > s + L - xe) ao = Math.max(0, (s + L - pos) / xe); }
     out.push({ c: c, i: i, a: a, ao: ao, local: clipLocal(c, pos - s) });
   });
   return out;
@@ -7825,7 +7828,7 @@ tlActive = function (pos) {
   var _p = wcPlan;
   wcPlan = function () { var pl = _p.apply(this, arguments); if (!pl.tl) return pl;
     pl.clips.forEach(function (pc, i) { var tc = TL.clips[i]; if (!tc) return; var e = clipSlowEff(tc); if (e) pc.slow = e; pc.L = tlLen(tc);
-      if (tlCut(i)) { pc.xin = 0; if (pl.clips[i - 1]) pl.clips[i - 1].xout = 0; } });
+      if (i > 0) { var ov = tlOv(i - 1); pc.xin = ov; if (pl.clips[i - 1]) pl.clips[i - 1].xout = ov; } }); // v22e: samma övertoning på båda sidor (0 vid delning)
     var st = tlStarts(); pl.clips.forEach(function (pc, i) { pc.s = st.s[i]; }); pl.total = st.total; return pl; };
   var _a = slowAudioParts; slowAudioParts = function (c) { var o = _a(c); if (o.length) { o[0].xin = c.xin || 0; o[o.length - 1].xout = c.xout || 0; } return o; };
   var _pl = tlPlay; tlPlay = function () { delaElAssign(); delaPower(); return _pl.apply(this, arguments); };
@@ -7861,6 +7864,7 @@ function delaAt() { // dela klippet under uppspelningshuvudet
   if (single) { c = TL.clips[0]; t = videoEl.currentTime || 0; if (t < V.start + 0.3 || t > V.end - 0.3) { toast('Flytta uppspelningshuvudet minst 0,3 s in i klippet för att dela.'); return; } }
   else { var act = tlActive(TL.pos); if (!act.length) { toast('Inget klipp vid uppspelningshuvudet.'); return; } var a = act[act.length - 1]; c = a.c; i = a.i; t = a.local;
     if (t < c.inn + 0.3 || t > c.out - 0.3) { toast('För nära klippets början eller slut – flytta minst 0,3 s in.'); return; } }
+  { var fq = (window.WCO && WCO.fps) || 30; t = Math.floor(t * fq + 1e-3) / fq + 1e-3; } // v22e (L4): dela på rutgränsen – den synliga rutan hamnar bara i den andra delen (+1 ms så att gränsen inte sammanfaller exakt med rutans tidsstämpel) // v22e (L4): dela på rutgränsen – den synliga rutan hamnar bara i den andra delen
   delaPush();
   if (single) { V.slow.on && (TL.clips[0].slow = JSON.parse(JSON.stringify(V.slow))); tlEnable(); i = 0; c = TL.clips[0]; V.slow.on = false; }
   var c2 = tlMakeClip(c.file, c.el); c2.url = c.url || V.url; // v21: delen fortsätter i samma <video> (hårt klipp utan byte/spolning); delaElAssign ger egen när de inte längre ligger i följd c2.name = c.name; c2.dur = c.dur || V.dur; c2.vw = c.vw || c.el.videoWidth; c2.vh = c.vh || c.el.videoHeight;
@@ -8466,8 +8470,8 @@ function sesOffer() {
    Dela här / Ta bort, dra i kanterna för att ändra längd (gula handtag), jogghjul för ruta-för-ruta. ---------- */
 (function () {
   /* v22d (K1): dockan ligger i panelen (ovanför panelens innehåll), inte ovanpå filmen – bildytan täcks aldrig. Stående: under filmen,
-     panelens innehåll krymper (rullar). Liggande/dator: panelen står bredvid filmen och dockan överst i den. Safe areas via env(). */
-  var css = '#kbDock{display:none;flex:none;order:0;padding:8px calc(10px + env(safe-area-inset-right)) 8px calc(10px + env(safe-area-inset-left));border-bottom:1px solid var(--line,rgba(255,255,255,.1))}body.kbon #kbDock{display:block}' +
+     panelens innehåll krymper (rullar). Liggande/dator: panelen står bredvid filmen och dockan överst i den. Safe areas: läggs bara på #app (S1) – inte här. */
+  var css = '#kbDock{display:none;flex:none;order:0;padding:8px 10px;border-bottom:1px solid var(--line,rgba(255,255,255,.1))}body.kbon #kbDock{display:block}' +
     'body.kbon .panel{display:flex;flex-direction:column;min-height:0}body.kbon .panel .sheet{min-height:0}' +
     'body.kbon:not(.vfs) #vbar{display:none!important}' +
     '#kbBar{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}#kbBar .btn{min-height:44px;white-space:nowrap;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
@@ -8480,7 +8484,9 @@ function sesOffer() {
     '@media (max-width:430px),(max-height:500px){#kbBar{gap:6px}#kbBar .btn{padding-left:8px;padding-right:8px}#kbLanes{margin-top:4px}#kbLanes .tllanes{padding:2px 0}#kbLanes .tllane{padding:1px 4px}#kbLanes .tllbl{display:none}#kbLanes #tlScroll{padding-top:24px}#kbLanes #tlTxtLane{height:30px;margin-top:2px}#kbLanes #tlMusic{height:22px}#kbJog{margin-top:4px}}' +
     '@media (max-height:500px){#kbDock{padding-top:6px;padding-bottom:6px}#kbLanes #tlTxtLane,#kbLanes .tllane+.tllane{display:none}#kbPlay{width:44px;height:44px}}' +
     /* stående telefon/surfplatta: panelens innehåll får mindre plats så filmen behåller minst ~40 % av höjden */
-    '@media (orientation:portrait){body.kbon .panel .sheet{max-height:14dvh}}';
+    '@media (orientation:portrait){body.kbon .panel .sheet{max-height:max(48px,calc(14dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)))}}' +
+    /* v22e (S1): knapptexten ryms alltid (ingen bred standardpadding) */
+    '#kbSplit,#kbDel{padding-left:8px!important;padding-right:8px!important;white-space:nowrap}';
   document.head.append(el('style', { text: css }));
   var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
   var dock = KBDOCK;
