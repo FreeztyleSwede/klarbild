@@ -2840,7 +2840,7 @@ function updateVTime() {
   var sp = $('#vprog'); if (sp) { sp.setAttribute('aria-valuenow', (+(t - V.start).toFixed(1))); sp.setAttribute('aria-valuemax', (+(V.end - V.start).toFixed(1))); sp.setAttribute('aria-valuetext', fmtTimeShort(t - V.start)); }
   $('#vtime').textContent = fmtTimeShort(t - V.start) + ' / ' + fmtTimeShort(len);
 }
-function requestVideoRender() { if (!V.playing) requestAnimationFrame(renderVideo); }
+var VRQ = 0; function requestVideoRender() { if (V.playing || VRQ) return; VRQ = requestAnimationFrame(function () { VRQ = 0; renderVideo(); }); } // v22: flera begäran samma bildruta → en ritning
 function vLoop() {
   if (!V.playing) return;
   if (!videoEl.seeking) renderVideo();
@@ -5331,7 +5331,7 @@ function drawTextAnim(ctx, w, h, t) {
     el('button', { type: 'button', class: 'btn block', id: 'animPreview', html: ICON.play + 'Visa animationen', onclick: function () {
       if (!V.ready) { toast('Välj en film först.'); return; } pauseVideo(); try { videoEl.currentTime = Math.max(V.start, V.start + t.animStart - 0.3); } catch (e) {} playVideo().catch(function () {}); } }),
     el('p', { class: 'info', text: 'Dra texten på filmen för att flytta den och nyp med två fingrar (eller scrolla) på texten för att zooma. Animationen syns när filmen spelas och följer med i exporten.' }));
-  sync(); videoEl.addEventListener('loadedmetadata', function () { if (!(window.PX && PX.swapping)) sync(); });
+  sync(); videoEl.addEventListener('loadedmetadata', function () { if (!(window.VPX && VPX.swapping)) sync(); });
   var ap = el('p', { class: 'info', text: 'Dra texten för att flytta den. Nyp med två fingrar eller scrolla på texten för att zooma.' }); var pt = panes['p-text']; if (pt) pt.append(ap);
 })();
 /* --- p19: meddelande om en export avbröts eller sidan kraschade/laddades om mitt i (t.ex. slut på minne i Safari) --- */
@@ -5430,7 +5430,7 @@ function tlSync(seekOnly) {
     else if (!e.seeking && Math.abs((e.currentTime || 0) - a.local) > (e.paused ? 0.05 : e === lead ? 0.6 : 0.5)) /* ledaren söks bara vid hårt klipp/byte (> 0,6 s) */ { try { e.currentTime = a.local; } catch (er) {} TL.nSeek = (TL.nSeek || 0) + 1; }
     if (TL.playing && e.paused) { var pr = e.play(); if (pr && pr.catch) pr.catch(function () {}); }
   });
-  TL.clips.forEach(function (c, i) { if (els.has(c.el)) return; if (!ids[c.id] && !c.el.paused) c.el.pause();
+  TL.clips.forEach(function (c, i) { if (els.has(c.el)) { if (c.el.__kbPre) { c.el.__kbPre = 0; c.el.muted = false; } return; } if (c.el.__kbPre && TL.playing && TL.pos < c.el.__kbPre) return; /* v22b: förrullning inför övergång */ if (!ids[c.id] && !c.el.paused) c.el.pause();
     if (!ids[c.id] && TL.playing) { var st = tlStarts().s[i]; if (st > TL.pos && st - TL.pos < 1.2 && Math.abs(c.el.currentTime - c.inn) > 0.1 && !c.el.seeking) { try { c.el.currentTime = c.inn; } catch (er) {} } } });
 }
 function tlRender() {
@@ -6108,6 +6108,7 @@ var wcUI = {};
   refreshVideoExport = function () {
     _r.apply(this, arguments);
     var bx = $('#wcOpts'); if (!bx) return;
+    if (!WC.caps && !bx.offsetParent) return; // v22: kodartesten (≈ 1 s på svag CPU) körs först när exportpanelen syns – inte vid varje delning
     wcCaps().then(function (c) {
       var st = $('#vexpStatus'), card = st && st.querySelector('.card:not(.warn) .info');
       [].forEach.call(bx.querySelectorAll('.seg'), function (s) { s.classList.toggle('dis', !c.wc); [].forEach.call(s.children, function (b) { b.disabled = !c.wc; }); });
@@ -7619,7 +7620,7 @@ function slowPreviewRate(reset) {
   var slowSnd = inS && e.snd === 'slow'; try { videoEl.preservesPitch = videoEl.webkitPreservesPitch = !slowSnd; } catch (er) {}
   var mute = inS && e.snd === 'mute'; if (V._slowMute !== mute) { V._slowMute = mute; var g = typeof vidGain !== 'undefined' && vidGain; if (g) g.gain.value = mute ? 0 : V.videoVol / 100; else videoEl.muted = mute; }
 }
-videoEl.addEventListener('loadedmetadata', function () { if (window.PX && PX.swapping) return; V.slow.on = false; V.slow.a = 0; V.slow.b = V.dur || 0; SLOW_UNDO.length = 0; V.sfps = null; slowUi(); });
+videoEl.addEventListener('loadedmetadata', function () { if (window.VPX && VPX.swapping) return; V.slow.on = false; V.slow.a = 0; V.slow.b = V.dur || 0; SLOW_UNDO.length = 0; V.sfps = null; slowUi(); });
 /* ---------- gränssnitt i Klipp ---------- */
 var slowEls = {};
 function slowSnap() { return JSON.stringify(slowTgt()); }
@@ -7910,7 +7911,7 @@ function delaBar(id) {
     var u = $('#delaLUndo'), u2 = $('#delaTUndo'); [u, u2].forEach(function (b) { if (b) b.disabled = !DELA_UNDO.length; });
     delaMarks(); return r; };
   var _ut = updateTrimInfo; updateTrimInfo = function () { var r = _ut.apply(this, arguments); delaMarks(); return r; };
-  videoEl.addEventListener('loadedmetadata', function () { if (window.PX && PX.swapping) return; DELA_UNDO.length = 0; setTimeout(delaMarks, 0); });
+  videoEl.addEventListener('loadedmetadata', function () { if (window.VPX && VPX.swapping) return; DELA_UNDO.length = 0; setTimeout(delaMarks, 0); });
 })();
 /* slowmotion-panelen redigerar vald del när tidslinjen är på */
 function slowTgt() { if (!TL.on) return V.slow; var c = TL.clips[TL.sel] || TL.clips[0]; if (!c.slow) c.slow = { on: false, f: 0.5, a: c.inn, b: c.out, snd: 'mute' }; return c.slow; }
@@ -7943,15 +7944,21 @@ function slowSeekSrc(t) { if (!TL.on) return seekLatest(t); var i = TL.sel, c = 
    släpps). Element som ingen del eller Ångra längre pekar på tas bort helt och deras objectURL frigörs. */
 var DELA_ALL = [];
 function delaWake(c) { var e = c.el; if (!c.url) return; if (e === videoEl || !e.__kbSleep) return; e.__kbSleep = false; var t = c.inn;
-  e.addEventListener('loadedmetadata', function f() { e.removeEventListener('loadedmetadata', f); try { if (Math.abs(e.currentTime - t) > 0.05 && !TL.playing) e.currentTime = t; } catch (er) {} });
+  if (e.__kbWf) e.removeEventListener('loadedmetadata', e.__kbWf); /* v22b: ingen lyssnare kvar om elementet söver innan metadata */
+  e.addEventListener('loadedmetadata', e.__kbWf = function f() { e.removeEventListener('loadedmetadata', f); e.__kbWf = null; try { if (Math.abs(e.currentTime - t) > 0.05 && !TL.playing) e.currentTime = t; } catch (er) {} });
   e.preload = 'auto'; e.src = c.url; e.load(); }
-function delaSleep(e) { if (e === videoEl || e.__kbSleep || !e.paused) return; e.__kbSleep = true; try { e.removeAttribute('src'); e.load(); } catch (er) {} }
+function delaSleep(e) { if (e === videoEl || e.__kbSleep || !e.paused) return; if (e.__kbAlt && !e.__kbFree) return; /* v22b: övergångselementet vilar pausat (ingen ritning), laddat */ e.__kbSleep = true; try { e.removeAttribute('src'); e.load(); } catch (er) {} }
 function delaPower() {
   if (!TL.on) return; var need = new Set(), st = tlStarts(), now = TL.pos, ahead = TL.playing ? 2.5 : 0.6, cl = TL.clips;
   for (var i = 0; i < cl.length; i++) { var L = tlLen(cl[i]); if (st.s[i] - ahead <= now && now < st.s[i] + L + 0.2) need.add(cl[i].el); }
   if (cl[TL.sel] && !TL.playing) need.add(cl[TL.sel].el);
   var t = performance.now();
   for (i = 0; i < cl.length; i++) { var e = cl[i].el; if (need.has(e)) { e.__kbNeed = t; if (e.__kbSleep) delaWake(cl[i]); } }
+  for (i = 1; i < cl.length; i++) { var x = cl[i]; if (!x.el.__kbAlt || !x.el.paused || x.el.__kbSleep || x.el.readyState < 1) continue; // v22b: vilande övergångselement förspolas till nästa inkommande del
+    if (st.s[i] - (TL.playing ? 3 : 0.6) <= now && now < st.s[i] && Math.abs(x.el.currentTime - x.inn) > 0.04) try { x.el.currentTime = x.inn; } catch (er) {} }
+  if (TL.playing) for (i = 1; i < cl.length; i++) { var y = cl[i], d = st.s[i] - now; // v22b: övergångselementet startar 0,25 s före (tyst) så avkodaren är igång när övertoningen börjar
+    if (!y.el.__kbAlt || !y.el.paused || y.el.__kbSleep || y.el.readyState < 2 || !(d > 0 && d < 0.25) || y.inn - d < 0) continue;
+    try { y.el.muted = true; y.el.currentTime = y.inn - d; y.el.__kbPre = st.s[i]; var pr = y.el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (er) {} }
   DELA_ALL.forEach(function (o) { var e = o.el; if (!need.has(e) && !e.__kbSleep && e.paused) delaSleep(e); }); // v21b: sövs direkt (även under uppspelning)
 }
 function delaSleepAll() { DELA_ALL.forEach(function (o) { try { o.el.pause(); } catch (e) {} o.el.__kbNeed = 0; delaSleep(o.el); }); }
@@ -7964,10 +7971,30 @@ function delaElAssign() {
   all.forEach(function (c) { var h = c.file && home.get(c.file); if (!h || c.el === h.el) return; var g = null;
     for (var k = 0; k < all.length; k++) if (all[k].el === h.el && all[k].node) { g = all[k]; break; }
     c.el = h.el; c.url = h.url; c.gain = g ? g.gain : null; c.node = g ? g.node : null; });
+  /* v22 (R1): vid en övertoning mellan två delar ur samma fil (efter borttagen/flyttad del) behöver den inkommande delen
+     ett eget <video> – annars visar förhandsvisningen den utgående delens fortsättning. Högst ett extra element per fil. */
+  for (var i = 1; i < cl.length; i++) { var c = cl[i], p = cl[i - 1];
+    if (!c.file || c.file !== p.file || !TL.fade || tlCut(i) || c.el !== p.el) continue;
+    var a = DELA_ALT.get(c.file); if (!a || !a.el.isConnected) {
+      if (!TL.playing && !V.playing) { delaAltLater(c.file); continue; } // v22b: skapas i lugnt läge (ny avkodare kostar ~200 ms på svag CPU), direkt vid uppspelning
+      a = delaAltMake(c); }
+    var g2 = null; for (var k = 0; k < all.length; k++) if (all[k].el === a.el && all[k].node) { g2 = all[k]; break; }
+    c.el = a.el; c.url = a.el.__kbUrl || a.url; c.gain = g2 ? g2.gain : null; c.node = g2 ? g2.node : null; }
 }
+var DELA_ALT = new Map(), delaAltQ = 0;
+function delaAltMake(c) { var a = delaNewEl(c); a.el.__kbAlt = true; a.el.preload = 'auto'; DELA_ALT.set(c.file, a); return a; }
+var delaAltT0 = 0;
+function delaAltLater(f) { delaAltT0 = performance.now(); if (delaAltQ) return;
+  (function w() { delaAltQ = setTimeout(function () { var n = performance.now();
+    if (n - Math.max(delaAltT0, (window.KBI && KBI.t) || 0) < 1800 && !TL.playing) return w(); delaAltQ = 0;
+    if (DELA_ALT.has(f) || !delaAltNeed(f)) return; var c = TL.clips.filter(function (x) { return x.file === f; })[0]; if (!c) return;
+    delaAltMake(c); try { delaElAssign(); delaPower(); if (!TL.playing) tlRender(); } catch (e) {} }, 300); })(); }
+function delaAltNeed(f) { if (!TL.fade) return false; var cl = TL.clips; for (var i = 1; i < cl.length; i++) if (cl[i].file === f && cl[i - 1].file === f && !tlCut(i)) return true; return false; }
 function delaGc() { // element som varken tidslinjen eller Ångra pekar på
   var used = new Set(); TL.clips.forEach(function (c) { used.add(c.el); }); DELA_UNDO.forEach(function (s) { s.clips.forEach(function (o) { used.add(o.c.el); }); });
-  DELA_ALL = DELA_ALL.filter(function (o) { if (used.has(o.el)) return true; try { o.el.pause(); o.el.removeAttribute('src'); o.el.load(); o.el.remove(); } catch (e) {} revokeSafe(o.url); return false; });
+  var busy = TL.playing || V.playing; // v22b: övergångselementet rivs bara när ingen mjuk övergång i samma fil finns kvar (eller källan är borta), aldrig under uppspelning
+  DELA_ALT.forEach(function (a, f) { if (busy || delaAltNeed(f)) used.add(a.el); });
+  DELA_ALL = DELA_ALL.filter(function (o) { if (used.has(o.el)) return true; DELA_ALT.forEach(function (a, f) { if (a.el === o.el) DELA_ALT.delete(f); }); try { o.el.pause(); o.el.removeAttribute('src'); o.el.load(); o.el.remove(); } catch (e) {} revokeSafe(o.url); return false; });
 }
 (function () {
   var _s = tlSync; tlSync = function (seekOnly) { delaElAssign(); delaPower(); return _s.apply(this, arguments); };
@@ -7980,6 +8007,10 @@ function delaGc() { // element som varken tidslinjen eller Ångra pekar på
 
 /* v21b: kortets Ta bort går via delaRemove (delade <video> får inte rivas, Ångra finns) */
 (function () { tlRemove = function (i) { if (!TL.clips[i] || TL.clips.length < 2) return; TL.sel = i; delaRemove(); }; })();
+
+/* v22b: efter en export släpps även övergångselementets avkodare (vaknar igen ~3 s före nästa övergång) */
+(function () { var _e = expEnd; expEnd = function () { var r = _e.apply(this, arguments); try { DELA_ALT.forEach(function (a) { if (!a.el.paused) return; a.el.__kbFree = true; delaSleep(a.el); a.el.__kbFree = false; }); } catch (e) {} return r; }; })();
+(function () { var _p = tlPlay; tlPlay = function () { try { var seen = {}; TL.clips.forEach(function (c) { var f = c.file; if (!f || seen[f] === 1) return; seen[f] = 1; if (!DELA_ALT.has(f) && delaAltNeed(f)) delaAltMake(c); }); } catch (e) {} return _p.apply(this, arguments); }; })(); // v22b: uppspelning väntar inte på lugnt läge
 
 /* ---------- v21: iMovie-lik tidslinje: miniatyrer, delar med mellanrum, gula handtag, delningsflaggor, papperskorg/markering, förhandsvisning av övergång, slowmotion i orange ---------- */
 (function () {
@@ -8005,29 +8036,59 @@ function delaGc() { // element som varken tidslinjen eller Ångra pekar på
   document.head.append(el('style', { text: css }));
 })();
 /* miniatyrer: en sprite per fil (≤ 4 filer i cache), avkodare stängs direkt, inga ImageBitmap hålls kvar */
+var KBI = { t: 0 }; /* v22: senaste interaktion – bakgrundsarbete väntar medan användaren trycker/rullar */
+['pointerdown', 'touchstart', 'touchmove', 'wheel', 'scroll'].forEach(function (e) { window.addEventListener(e, function () { KBI.t = performance.now(); }, { passive: true, capture: true }); });
 var TLTH = { m: new Map(), busy: false, made: 0, freed: 0 };
 var TLTH_K = 40, TLTH_W = 64, TLTH_H = 36;
 function tlThumbGet(file) { var o = file && TLTH.m.get(file); if (o) { TLTH.m.delete(file); TLTH.m.set(file, o); } return o && o.url ? o : null; }
 function tlThumbFree(keep) {
-  TLTH.m.forEach(function (o, f) { if (!keep || !keep.has(f)) { if (o.url) { revokeSafe(o.url); TLTH.freed++; } TLTH.m.delete(f); } });
+  TLTH.m.forEach(function (o, f) { if (!keep || !keep.has(f)) { if (o.kill) o.kill(); if (o.url) { revokeSafe(o.url); TLTH.freed++; } TLTH.m.delete(f); } });
 }
 function tlThumbGc() { var keep = new Set(); TL.clips.forEach(function (c) { if (c.file) keep.add(c.file); }); (window.DELA_UNDO || []).forEach(function (s) { s.clips.forEach(function (x) { x.c && x.c.file && keep.add(x.c.file); }); }); tlThumbFree(keep);
   while (TLTH.m.size > 4) { var f = TLTH.m.keys().next().value, o = TLTH.m.get(f); if (o.url) { revokeSafe(o.url); TLTH.freed++; } TLTH.m.delete(f); } }
 function tlThumbMake(file, dur) {
-  if (!file || TLTH.m.has(file) || TLTH.busy || V.exporting || typeof MB === 'undefined' || !window.VideoDecoder) return;
+  if (!file || TLTH.m.has(file) || TLTH.busy || V.exporting || V.playing || TL.playing || typeof MB === 'undefined' || !window.VideoDecoder) return;
   TLTH.busy = true; var o = { url: null, K: TLTH_K }; TLTH.m.set(file, o); var input = null;
-  (async function () {
+  function mainThread() { return (async function () {
     input = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS });
     var vt = await input.getPrimaryVideoTrack(); if (!vt) throw new Error('ingen video'); var d = dur || (await input.computeDuration()) || 1, ts = [];
     for (var j = 0; j < TLTH_K; j++) ts.push(Math.min(d - 0.05, (j + 0.5) * d / TLTH_K));
     var sp = document.createElement('canvas'); sp.width = TLTH_W * TLTH_K; sp.height = TLTH_H; var g = sp.getContext('2d'), j2 = 0;
     var sink = new MB.CanvasSink(vt, { width: TLTH_W, height: TLTH_H, fit: 'cover', poolSize: 1 });
-    for await (var r of sink.canvasesAtTimestamps(ts)) { if (V.exporting) throw new Error('export'); if (r && r.canvas) g.drawImage(r.canvas, j2 * TLTH_W, 0); j2++; }
+    for await (var r of sink.canvasesAtTimestamps(ts)) { if (V.exporting) throw new Error('export'); if (r && r.canvas) g.drawImage(r.canvas, j2 * TLTH_W, 0); j2++;
+      /* v22: en miniatyr i taget, sedan tillbaka till appen; pausar under uppspelning och medan användaren drar/rullar */
+      do { await new Promise(function (z) { setTimeout(z, 0); }); if (TLTH.m.get(file) !== o) throw new Error('bort'); } while (V.playing || TL.playing || TLD || TLTRIM || (window.KBI && performance.now() - KBI.t < 600)); }
     var b = await new Promise(function (res) { sp.toBlob(res, 'image/jpeg', 0.7); }); sp.width = sp.height = 1;
     if (!b) throw new Error('blob'); if (TLTH.m.get(file) !== o) return; o.url = URL.createObjectURL(b); TLTH.made++;
-  })().catch(function (e) { if (TLTH.m.get(file) === o && !o.url) TLTH.m.delete(file); }).finally(function () { try { input && input.dispose && input.dispose(); } catch (e) {} TLTH.busy = false; tlThumbGc();
-    if (o.url && TL.on && !TLD && !TLTRIM) tlUI(); else if (!o.url) setTimeout(function () { if (TL.on) tlThumbWant(); }, 1500); });
+  })(); }
+  function viaWorker() { /* v22: miniatyrerna avkodas i en egen tråd – appen blockeras inte på svag CPU */
+    var src = !TLTH.noWorker && window.Worker && window.OffscreenCanvas && tlThumbWorkerSrc(); if (!src) return mainThread();
+    return new Promise(function (res, rej) { var w; try { w = new Worker(src); } catch (e) { TLTH.noWorker = true; res(mainThread()); return; }
+      o.kill = function () { try { w.terminate(); } catch (e) {} rej(new Error('bort')); };
+      w.onmessage = function (ev) { var d = ev.data; w.terminate(); o.kill = null;
+        if (d.err) { TLTH.noWorker = true; res(mainThread()); return; } if (TLTH.m.get(file) !== o) return res(); o.url = URL.createObjectURL(d.blob); TLTH.made++; res(); };
+      w.postMessage({ file: file, dur: dur || 0, K: TLTH_K, W: TLTH_W, H: TLTH_H }); }); }
+  viaWorker().catch(function (e) { if (TLTH.m.get(file) === o && !o.url) TLTH.m.delete(file); }).finally(function () { try { input && input.dispose && input.dispose(); } catch (e) {} TLTH.busy = false; tlThumbGc();
+    if (o.url && TL.on && !TLD && !TLTRIM) tlThumbPaint(file, o); else if (!o.url) (function again() { setTimeout(function () { if (!TL.on) return; if (V.playing || TL.playing) return again(); tlThumbWant(); }, 1500); })(); });
 }
+(function () { /* v22: uppspelning går först – pågående miniatyrarbete avbryts och tas om när filmen står still */
+  ['tlPlay', 'playVideo'].forEach(function (k) { var o = window[k]; if (typeof o === 'function') window[k] = function () { TLTH.m.forEach(function (x, f) { if (x.kill) { x.kill(); } }); return o.apply(this, arguments); }; });
+})();
+function tlThumbWorkerSrc() {
+  if (TLTH.wsrc) return TLTH.wsrc; var mb = null;
+  [].forEach.call(document.scripts, function (s) { if (!mb && s.textContent.indexOf('var MB=') >= 0 && s.textContent.indexOf('mediabunny') >= 0 && s.textContent.length < 3e6) mb = s.textContent; });
+  if (!mb) return null;
+  var code = mb + '\nself.onmessage=async function(ev){var d=ev.data,input=null;try{input=new MB.Input({source:new MB.BlobSource(d.file),formats:MB.ALL_FORMATS});' +
+    'var vt=await input.getPrimaryVideoTrack();if(!vt)throw new Error("ingen video");var du=d.dur||(await input.computeDuration())||1,ts=[];for(var j=0;j<d.K;j++)ts.push(Math.min(du-0.05,(j+0.5)*du/d.K));' +
+    'var sp=new OffscreenCanvas(d.W*d.K,d.H),g=sp.getContext("2d"),k=0;var sink=new MB.CanvasSink(vt,{width:d.W,height:d.H,fit:"cover",poolSize:1});' +
+    'for await(var r of sink.canvasesAtTimestamps(ts)){if(r&&r.canvas)g.drawImage(r.canvas,k*d.W,0);k++}' +
+    'var b=await sp.convertToBlob({type:"image/jpeg",quality:0.7});self.postMessage({blob:b})}catch(e){self.postMessage({err:String(e&&e.message||e)})}finally{try{input&&input.dispose&&input.dispose()}catch(e){}}};';
+  return (TLTH.wsrc = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+}
+function tlThumbPaint(file, o) { // v22: byt bara bakgrundsbilden på de rutor som hör till filen – ingen omritning av hela tidslinjen
+  var n = 0; TL.clips.forEach(function (c, i) { if (c.file !== file || !tlTrackEl) return; var b = tlTrackEl.querySelector('.tlclip[data-i="' + i + '"] .tlbox'); if (!b) return;
+    var old = b.querySelector('.tlth'), px = b.getBoundingClientRect().width || 60, nu = tlThumbTiles(c, px); if (old) old.replaceWith(nu); else b.prepend(nu); n++; });
+  if (!n && TL.on) tlUI(); }
 function tlThumbWant() { for (var i = 0; i < TL.clips.length; i++) { var c = TL.clips[i]; if (c.file && !TLTH.m.has(c.file)) { tlThumbMake(c.file, c.dur || V.dur); return; } } }
 function tlThumbTiles(c, px) {
   var o = tlThumbGet(c.file), box = el('div', { class: 'tlth' }); if (!o) return box; var d = Math.max(0.1, c.dur || V.dur || 1), n = Math.max(1, Math.min(12, Math.round(px / 44))), K = o.K;
@@ -8080,7 +8141,7 @@ function tlDelMarked() {
   var _p = tlPause; tlPause = function () { TL.stopAt = null; return _p.apply(this, arguments); };
   var _s = delaPush; delaPush = function () { var r = _s.apply(this, arguments); return r; };
   var _und = delaUndo; delaUndo = function () { TL.marked.clear(); return _und.apply(this, arguments); };
-  videoEl.addEventListener('loadedmetadata', function () { if (window.PX && PX.swapping) return; TL.marked.clear(); TL.cutSel = -1; setTimeout(tlThumbGc, 0); setTimeout(tlThumbGc, 700); });
+  videoEl.addEventListener('loadedmetadata', function () { if (window.VPX && VPX.swapping) return; TL.marked.clear(); TL.cutSel = -1; setTimeout(tlThumbGc, 0); setTimeout(tlThumbGc, 700); });
   var P = tlPane;
   P.addEventListener('click', function (e) {
     var f = e.target.closest && e.target.closest('.tlflag'); if (f) { var i = +f.getAttribute('data-cut'); TL.cutSel = i; if (TL.playing) tlPause(); tlSeek(tlStarts().s[i] + 0.001); tlUI(); return; }
@@ -8116,29 +8177,32 @@ function tlDelMarked() {
 /* ---------- v22: förhandsvisningsproxy ----------
    Efter import görs i bakgrunden (bara när filmen står still) en lågupplöst kopia (≈540p H.264 + ljud) med WebCodecs/mediabunny.
    Den används ENDAST av förhandsvisningens <video>. Exporten läser alltid originalfilen (c.file). Saknas stöd → ingen proxy. */
-var PX = { map: new Map(), tried: new WeakSet(), job: null, swapping: 0, H: 540, log: [] };
-function pxSupported() { return !!(!PX.off && typeof MB !== 'undefined' && MB.CanvasSink && MB.CanvasSource && MB.EncodedAudioPacketSource && window.VideoEncoder && window.VideoDecoder && window.AudioEncoder && window.AudioData); }
+var VPX = { minDur: null, map: new Map(), tried: new WeakSet(), job: null, swapping: 0, H: 540, log: [] };
+function pxSupported() { return !!(!VPX.off && typeof MB !== 'undefined' && MB.CanvasSink && MB.CanvasSource && MB.EncodedAudioPacketSource && window.VideoEncoder && window.VideoDecoder && window.AudioEncoder && window.AudioData); }
 function pxBusy() { return !V.ready || V.playing || V.recording || V.exporting || TL.playing; }
-function pxWait() { return new Promise(function (r) { (function w() { if (PX.job && PX.job.cancel) return r(); if (!pxBusy()) return r(); setTimeout(w, 250); })(); }); }
-async function pxMake(file) {
-  var J = PX.job = { file: file, cancel: false, t0: performance.now(), frames: 0 };
+function pxWait() { return new Promise(function (r) { (function w() { if (VPX.job && VPX.job.cancel) return r(); if (!pxBusy()) return r(); setTimeout(w, 250); })(); }); }
+/* v22 PRIO 1: själva bygget är en fristående funktion som körs i en worker (egen tråd) – faller tillbaka på huvudtråden med låg prioritet.
+   Filmen spelas och redigeras direkt med originalet; proxyn byts in tyst när den är klar. Korta klipp ≤ 1080p (< 30 s) får ingen proxy. */
+async function pxCore(file, PH, chk, prog, minDur) {
   var inp = new MB.Input({ source: new MB.BlobSource(file), formats: MB.ALL_FORMATS }), vt = await inp.getPrimaryVideoTrack();
   if (!vt || !(await vt.canDecode())) throw new Error('kan inte avkoda');
   var sw = vt.displayWidth || vt.codedWidth, sh = vt.displayHeight || vt.codedHeight; if (!sw || !sh) throw new Error('okänd storlek');
-  if (Math.min(sw, sh) <= PX.H + 60) return null; // redan liten nog
-  var sc = PX.H / Math.min(sw, sh), W = Math.round(sw * sc / 2) * 2, H = Math.round(sh * sc / 2) * 2;
+  var dur = 0; try { dur = await inp.computeDuration(); } catch (e) {}
+  if (Math.min(sw, sh) <= 720) return { skip: 'liten' }; // 720p och lägre spelas bra direkt
+  if (Math.min(sw, sh) <= 1080 && dur > 0 && dur <= (minDur == null ? 35 : minDur)) return { skip: 'kort' }; // kort klipp i högst 1080p spelas bra utan proxy
+  var sc = PH / Math.min(sw, sh), W = Math.round(sw * sc / 2) * 2, H = Math.round(sh * sc / 2) * 2;
   var fps = 30; try { var st = await vt.computePacketStats(120); if (st && st.averagePacketRate) fps = Math.min(60, Math.max(10, Math.round(st.averagePacketRate))); } catch (e) {}
   var codec = null; for (var cs of ['avc1.42E01F', 'avc1.4D401F', 'avc1.640028']) { try { var s = await VideoEncoder.isConfigSupported({ codec: cs, width: W, height: H, bitrate: 2e6, framerate: fps }); if (s && s.supported) { codec = cs; break; } } catch (e) {} }
   if (!codec) throw new Error('ingen H.264-kodare');
-  var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var cx = cv.getContext('2d');
+  var cv = typeof document !== 'undefined' ? document.createElement('canvas') : new OffscreenCanvas(W, H); cv.width = W; cv.height = H; var cx = cv.getContext('2d');
   var tgt = new MB.BufferTarget(), out = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: 'in-memory' }), target: tgt });
-  var vsrc = new MB.CanvasSource(cv, { codec: 'avc', fullCodecString: codec, bitrate: 1.6e6, keyFrameInterval: 0.5, latencyMode: 'quality' }); // tät nyckelbild → snabba hopp i förhandsvisningen
+  var vsrc = new MB.CanvasSource(cv, { codec: 'avc', fullCodecString: codec, bitrate: 1.6e6, keyFrameInterval: 0.5, latencyMode: 'quality' });
   out.addVideoTrack(vsrc, { frameRate: fps });
-  var at = await inp.getPrimaryAudioTrack(), aenc = null, asrc = null, aerr = null;
+  var at = await inp.getPrimaryAudioTrack(), aenc = null, asrc = null, aerr = null, chain = Promise.resolve(), CH = 2;
   if (at && (await at.canDecode())) {
-    var SR = at.sampleRate || 48000, CH = Math.min(2, at.numberOfChannels || 2), acod = null;
+    var SR = at.sampleRate || 48000, acod = null; CH = Math.min(2, at.numberOfChannels || 2);
     for (var ac of [['aac', 'mp4a.40.2'], ['opus', 'opus']]) { try { var r = await AudioEncoder.isConfigSupported({ codec: ac[1], sampleRate: SR, numberOfChannels: CH, bitrate: 96000 }); if (r && r.supported) { acod = ac; break; } } catch (e) {} }
-    if (acod) { asrc = new MB.EncodedAudioPacketSource(acod[0]); out.addAudioTrack(asrc); var first = true, nextT = null, chain = Promise.resolve(), fd = acod[0] === 'aac' ? 1024 / SR : 0.02, mSR = acod[0] === 'aac' ? SR : 48000; // Opus: alltid 20 ms-ramar i 48 kHz
+    if (acod) { asrc = new MB.EncodedAudioPacketSource(acod[0]); out.addAudioTrack(asrc); var first = true, nextT = null, fd = acod[0] === 'aac' ? 1024 / SR : 0.02, mSR = acod[0] === 'aac' ? SR : 48000; // Opus: alltid 20 ms-ramar i 48 kHz
       aenc = new AudioEncoder({ output: function (ch, meta) { var d = new Uint8Array(ch.byteLength); ch.copyTo(d);
           if (acod[0] === 'aac' && d.length > 7 && d[0] === 0xFF && (d[1] & 0xF6) === 0xF0) d = d.subarray((d[1] & 1) ? 7 : 9);
           var ts = nextT == null ? Math.max(0, ch.timestamp / 1e6) : nextT; nextT = ts + fd;
@@ -8147,48 +8211,85 @@ async function pxMake(file) {
       aenc.configure({ codec: acod[1], sampleRate: SR, numberOfChannels: CH, bitrate: 96000 }); }
   }
   await out.start();
-  var it = null;
+  var it = null, frames = 0;
   try {
     it = new MB.CanvasSink(vt, { width: W, height: H, fit: 'fill', poolSize: 2 }).canvases()[Symbol.asyncIterator]();
-    for (;;) { if (J.cancel || pxBusy()) throw new Error('paus'); // spelas/exporteras: släpp avkodaren direkt, börja om när det är stilla
-      var n = await it.next(); if (n.done) break; var f = n.value; cx.drawImage(f.canvas, 0, 0, W, H); await vsrc.add(f.timestamp, f.duration || 1 / fps); J.frames++; }
+    for (;;) { await chk();
+      var n = await it.next(); if (n.done) break; var f = n.value; cx.drawImage(f.canvas, 0, 0, W, H); await vsrc.add(f.timestamp, f.duration || 1 / fps); frames++;
+      if (prog && dur > 0 && frames % 15 === 0) prog(Math.min(0.97, f.timestamp / dur * 0.95)); }
     if (aenc) { var ab = new MB.AudioBufferSink(at);
-      for await (var w of ab.buffers()) { if (J.cancel || pxBusy()) throw new Error('paus'); var b = w.buffer, L = b.length, nc = Math.min(CH, b.numberOfChannels), pl = new Float32Array(L * CH);
+      for await (var w of ab.buffers()) { await chk(); var b = w.buffer, L = b.length, nc = Math.min(CH, b.numberOfChannels), pl = new Float32Array(L * CH);
         for (var k = 0; k < CH; k++) pl.set(b.getChannelData(Math.min(k, nc - 1)), k * L);
         var adt = new AudioData({ format: 'f32-planar', sampleRate: b.sampleRate, numberOfFrames: L, numberOfChannels: CH, timestamp: Math.round(w.timestamp * 1e6), data: pl }); aenc.encode(adt); adt.close();
         if (aenc.encodeQueueSize > 8) await new Promise(function (r) { setTimeout(r, 5); }); }
       await aenc.flush(); await chain; aenc.close(); if (aerr) throw aerr; }
     vsrc.close(); if (asrc) asrc.close(); await out.finalize();
   } catch (e) { try { it && it.return && await it.return(); } catch (er) {} try { await out.cancel(); } catch (er) {} try { aenc && aenc.state !== 'closed' && aenc.close(); } catch (er) {} throw e; }
-  var blob = new Blob([tgt.buffer], { type: 'video/mp4' }), sec = (performance.now() - J.t0) / 1000;
-  PX.log.push({ name: file.name, src: sw + '×' + sh, proxy: W + '×' + H, MB_in: +(file.size / 1e6).toFixed(1), MB_ut: +(blob.size / 1e6).toFixed(1), sek: +sec.toFixed(1), rutor: J.frames });
-  return { url: URL.createObjectURL(blob), w: W, h: H, size: blob.size, sec: sec };
+  return { buf: tgt.buffer, w: W, h: H, sw: sw, sh: sh, frames: frames };
+}
+function pxWorkerSrc() {
+  if (VPX.wsrc) return VPX.wsrc; var mb = null;
+  [].forEach.call(document.scripts, function (s) { if (!mb && s.textContent.indexOf('var MB=') >= 0 && s.textContent.indexOf('mediabunny') >= 0 && s.textContent.length < 3e6) mb = s.textContent; });
+  if (!mb) return null;
+  var poly = 'if(typeof AudioBuffer==="undefined"){self.AudioBuffer=function(o){this.numberOfChannels=o.numberOfChannels;this.length=o.length;this.sampleRate=o.sampleRate;this.duration=o.length/o.sampleRate;this._c=[];for(var i=0;i<o.numberOfChannels;i++)this._c.push(new Float32Array(o.length))};' +
+    'AudioBuffer.prototype.getChannelData=function(i){return this._c[i]};AudioBuffer.prototype.copyToChannel=function(s,i,o){this._c[i].set(s.subarray(0,this.length-(o||0)),o||0)};AudioBuffer.prototype.copyFromChannel=function(d,i,o){d.set(this._c[i].subarray(o||0,(o||0)+d.length))}}\n'; // v22: AudioBuffer saknas i worker
+  var code = poly + mb + '\n' + wcAsc.toString() + '\n' + wcAudioMeta.toString() + '\n' + pxCore.toString() + '\n' +
+    'self.onmessage=async function(ev){var d=ev.data;try{if(!self.VideoEncoder||!self.VideoDecoder||!self.AudioEncoder||!self.OffscreenCanvas)throw new Error("noworker");' +
+    'var r=await pxCore(d.file,d.H,function(){return d.slow?new Promise(function(z){setTimeout(z,0)}):null},function(p){self.postMessage({prog:p})},d.min);' +
+    'self.postMessage({done:r},r&&r.buf?[r.buf]:[])}catch(e){self.postMessage({err:String(e&&e.message||e)})}};';
+  return (VPX.wsrc = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+}
+function pxMake(file) { // → Promise<{url,w,h,...}|null>; VPX.job.cancel() avbryter (worker avslutas direkt)
+  var J = VPX.job = { file: file, t0: performance.now(), prog: 0, cancelled: false, cancel: null };
+  function fin(r) { if (!r || r.skip) { J.skip = r && r.skip; return null; } var blob = new Blob([r.buf], { type: 'video/mp4' }), sec = (performance.now() - J.t0) / 1000;
+    VPX.log.push({ name: file.name, src: r.sw + '×' + r.sh, proxy: r.w + '×' + r.h, MB_in: +(file.size / 1e6).toFixed(1), MB_ut: +(blob.size / 1e6).toFixed(1), sek: +sec.toFixed(1), rutor: r.frames, tråd: J.mode });
+    return { url: URL.createObjectURL(blob), w: r.w, h: r.h, size: blob.size, sec: sec }; }
+  function main() { J.mode = 'huvudtråd'; J.cancel = function () { J.cancelled = true; };
+    return pxCore(file, VPX.H, function () { if (J.cancelled || pxBusy()) throw new Error('paus'); return new Promise(function (r) { setTimeout(r, 0); }); }, function (p) { J.prog = p; pxUi(); }, VPX.minDur).then(fin); } // ger plats åt appen mellan varje ruta
+  var src = !VPX.noWorker && window.Worker && pxWorkerSrc(); if (!src) return main();
+  return new Promise(function (res, rej) {
+    var w; try { w = new Worker(src); } catch (e) { VPX.noWorker = true; res(main()); return; }
+    J.mode = 'worker'; J.worker = w; J.cancel = function () { J.cancelled = true; try { w.terminate(); } catch (e) {} rej(new Error('paus')); };
+    w.onmessage = function (ev) { var d = ev.data; if (d.prog != null) { J.prog = d.prog; pxUi(); return; } w.terminate();
+      if (d.err === 'noworker' || (d.err && /OffscreenCanvas|not defined|document/.test(d.err))) { VPX.noWorker = true; VPX.wErr = d.err; res(main()); return; }
+      if (d.err) rej(new Error(d.err)); else res(fin(d.done)); };
+    w.onerror = function (e) { try { w.terminate(); } catch (er) {} VPX.noWorker = true; e.preventDefault && e.preventDefault(); res(main()); };
+    w.postMessage({ file: file, H: VPX.H, min: VPX.minDur });
+  });
 }
 function pxFileOf(e) { for (var i = 0; i < TL.clips.length; i++) if (TL.clips[i].el === e) return TL.clips[i].file; return null; }
 function pxSwap(e, url) { // byt källa på ett pausat element utan att appen tror att det är en ny film
   if (!e || !url || e.__kbPx === url || !e.paused) return false;
   if (e.__kbSleep) { var c0 = TL.clips.filter(function (c) { return c.el === e; })[0]; if (c0 && c0.vw && !e.__kbOW) { e.__kbOW = c0.vw; e.__kbOH = c0.vh; } e.__kbPx = url; return true; } // sovande: väcks med c.url (= proxyn)
   if (!e.__kbOW && e.videoWidth) { e.__kbOW = e.videoWidth; e.__kbOH = e.videoHeight; }
-  var t = e.currentTime || 0, h = e.onloadedmetadata; PX.swapping++;
-  e.onloadedmetadata = function () { e.onloadedmetadata = h; try { e.currentTime = t; } catch (er) {} setTimeout(function () { PX.swapping--; }, 0); };
+  var t = e.currentTime || 0, h = e.onloadedmetadata; VPX.swapping++;
+  e.onloadedmetadata = function () { e.onloadedmetadata = h; try { e.currentTime = t; } catch (er) {} setTimeout(function () { VPX.swapping--; }, 0); };
   e.__kbPx = url; e.src = url; e.load(); return true;
 }
-function pxApply(file) { var p = PX.map.get(file); if (!p || !p.url || pxBusy()) return;
+function pxApply(file) { var p = VPX.map.get(file); if (!p || !p.url || pxBusy()) return;
   var els = new Set(); TL.clips.forEach(function (c) { if (c.file === file) { c.url = p.url; els.add(c.el); } });
   if (window.DELA_UNDO) DELA_UNDO.forEach(function (s) { s.clips.forEach(function (o) { if (o.c.file === file) { o.c.url = p.url; } }); });
   els.forEach(function (e) { if (e.__kbUrl) e.__kbUrl = p.url; pxSwap(e, p.url); }); }
 function pxTick() {
-  if (!pxSupported() || PX.job) return; if (pxBusy()) { PX.idle = performance.now(); return; } if (performance.now() - (PX.idle || 0) < 2000) return; // börja först efter 2 s stillhet
-  for (var i = 0; i < TL.clips.length; i++) { var f = TL.clips[i].file; if (!f || PX.tried.has(f)) continue;
-    PX.tried.add(f); (function (f) { pxMake(f).then(function (p) { PX.job = null; PX.map.set(f, p || { url: null }); if (p) { pxApply(f); pxUi(); } }, function (e) { PX.job = null; var m = String(e && e.message || e); if (m === 'paus' && (PX.restarts = (PX.restarts || 0) + 1) < 50) { PX.tried.delete(f); PX.idle = performance.now(); return; } PX.map.set(f, { url: null, err: m }); pxUi(); }); })(f); return; }
-  PX.map.forEach(function (p, f) { if (p.url) pxApply(f); }); // element som vaknat/skapats sedan
+  if (VPX.job && pxBusy() && VPX.job.cancel && !VPX.job.cancelled) { VPX.job.cancel(); } if (!pxSupported() || VPX.job) return; if (window.TLTH && TLTH.busy) return; // v22: miniatyrerna först – aldrig två avkodare i bakgrunden samtidigt (minne på iPad) if (pxBusy()) { VPX.idle = performance.now(); return; } if (performance.now() - (VPX.idle || 0) < 2000) return; // börja först efter 2 s stillhet
+  for (var i = 0; i < TL.clips.length; i++) { var f = TL.clips[i].file; if (!f || VPX.tried.has(f)) continue;
+    VPX.tried.add(f); (function (f) { setTimeout(pxUi, 0); pxMake(f).then(function (p) { VPX.job = null; VPX.map.set(f, p || { url: null }); if (p) pxApply(f); pxUi(); }, function (e) { VPX.job = null; var m = String(e && e.message || e); VPX.lastErr = m; if (m === 'paus' && (VPX.restarts = (VPX.restarts || 0) + 1) < 50) { VPX.tried.delete(f); VPX.idle = performance.now(); return; } VPX.map.set(f, { url: null, err: m }); pxUi(); }); })(f); return; }
+  VPX.map.forEach(function (p, f) { if (p.url) pxApply(f); }); // element som vaknat/skapats sedan
 }
-function pxUi() { var b = $('#pxBadge'); if (!b) return; var p = TL.clips[0] && PX.map.get(TL.clips[0].file); b.classList.toggle('hidden', !(p && p.url)); }
-function pxReset() { if (PX.job) PX.job.cancel = true; PX.map.forEach(function (p) { if (p.url) setTimeout(function () { try { URL.revokeObjectURL(p.url); } catch (e) {} }, 3000); }); PX.map.clear(); }
+function pxUi() { // diskret status nere till vänster i bilden
+  var b = document.getElementById('pxBadge'), host = window.videoCanvas && videoCanvas.parentElement; if (!host) return;
+  if (!b) { b = el('div', { id: 'pxBadge', class: 'pxbadge hidden', role: 'status', 'aria-live': 'polite' }); if (getComputedStyle(host).position === 'static') host.style.position = 'relative'; host.append(b);
+    var st = document.createElement('style'); st.textContent = '.pxbadge{position:absolute;left:8px;bottom:8px;z-index:4;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;line-height:1.3;pointer-events:none;transition:opacity .4s}.pxbadge.hidden{opacity:0}'; document.head.appendChild(st); }
+  var f = TL.clips[0] && TL.clips[0].file, p = f && VPX.map.get(f), J = VPX.job && VPX.job.file === f ? VPX.job : null, t = '';
+  if (p && p.url) t = 'Snabb förhandsvisning ' + p.h + 'p'; else if (J && J.mode) t = 'Förbereder snabb förhandsvisning' + (J.prog ? ' ' + Math.round(J.prog * 100) + ' %' : '…');
+  if (b.textContent !== t) b.textContent = t; b.classList.toggle('hidden', !t || !V.ready);
+  clearTimeout(VPX.hideT); if (p && p.url) VPX.hideT = setTimeout(function () { b.classList.add('hidden'); }, 4000); }
+function pxReset() { if (VPX.job && VPX.job.cancel) VPX.job.cancel(); VPX.map.forEach(function (p) { if (p.url) setTimeout(function () { try { URL.revokeObjectURL(p.url); } catch (e) {} }, 3000); }); VPX.map.clear(); }
 (function () {
   setInterval(pxTick, 1200);
-  var _lv = loadVideo; loadVideo = function (f) { if (!(window.PX && PX.swapping)) { pxReset(); videoEl.__kbOW = videoEl.__kbOH = 0; videoEl.__kbPx = null; } return _lv.apply(this, arguments); };
-  var _ex = window.exportVideo; if (typeof _ex === 'function') exportVideo = function () { if (PX.job) PX.job.cancel = true; return _ex.apply(this, arguments); };
+  ['tlPlay', 'playVideo'].forEach(function (k) { var o = window[k]; if (typeof o === 'function') window[k] = function () { if (VPX.job && VPX.job.cancel && !VPX.job.cancelled) VPX.job.cancel(); VPX.idle = performance.now(); return o.apply(this, arguments); }; }); // uppspelning avbryter bygget direkt
+  var _lv = loadVideo; loadVideo = function (f) { if (!(window.VPX && VPX.swapping)) { pxReset(); videoEl.__kbOW = videoEl.__kbOH = 0; videoEl.__kbPx = null; } return _lv.apply(this, arguments); };
+  var _ex = window.exportVideo; if (typeof _ex === 'function') exportVideo = function () { if (VPX.job && VPX.job.cancel) VPX.job.cancel(); return _ex.apply(this, arguments); };
 })();
 
 /* v22 del 4: textbana – texten har start (tS) och längd (tD, null = till slutet). Synlig när tS ≤ T < tS+tD (rutexakt: ruta n syns om n/fps ligger i intervallet). */
@@ -8258,6 +8359,104 @@ function txtDrag(b) {
   b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
 }
 function delaRefreshUndo() { var u = document.getElementById('delaLUndo'), u2 = document.getElementById('delaTUndo'); [u, u2].forEach(function (x) { if (x) x.disabled = !DELA_UNDO.length; }); }
+
+/* v22: svarstid på svag CPU (iPad). En delning ändrar inte bilden som visas – rita inte om den. */
+(function () {
+  var keep = null, last = 0, pend = 0, drawn = 0;
+  var _da = window.delaAt;
+  if (_da) delaAt = function () { var t = videoEl.currentTime, p = TL.on ? TL.pos : t - (V.start || 0); keep = { until: performance.now() + 1500, t: t, p: p, l: JSON.stringify(V.look) + V.compare }; return _da.apply(this, arguments); };
+  var _rv = renderVideo;
+  renderVideo = function () {
+    if (keep) { if (!V.playing && performance.now() < keep.until && Math.abs(videoEl.currentTime - keep.t) < 0.016 && Math.abs(TL.pos - keep.p) < 0.016 && JSON.stringify(V.look) + V.compare === keep.l) return; keep = null; }
+    if (!V.playing && !TL.playing && (drawn || performance.now() - last < 40)) { if (!pend) pend = requestAnimationFrame(function () { pend = 0; last = 0; renderVideo(); }); return; } // flera ritningar i rad (sökt + inläst + tidslinje) → en
+    if (TL.on && window.delaElAssign) try { delaElAssign(); } catch (e) {} // v22b: rätt element redan i första ritningen
+    var r = _rv.apply(this, arguments); last = performance.now(); if (!drawn) { drawn = 1; requestAnimationFrame(function () { drawn = 0; }); } return r; /* högst en ritning per målad ruta i pausat läge */ // räknat från ritningens slut: nästa ritning får en egen ruta
+  };
+})();
+/* v22b: tidslinjens ritning i pausat läge högst en gång per målad ruta (seeked/loadeddata från flera <video> i samma ruta → en) */
+(function () {
+  var _t = tlRender, fr = 0, pend = 0;
+  tlRender = function () {
+    if (!TL.playing && fr) { if (!pend) pend = requestAnimationFrame(function () { pend = 0; fr = 0; tlRender(); }); return; }
+    if (!fr) { fr = 1; requestAnimationFrame(function () { fr = 0; }); }
+    return _t.apply(this, arguments);
+  };
+})();
+
+/* v22: sessionsskydd – Safari på iPad kan döda fliken vid minnesbrist (sidan laddas om och filmen försvinner).
+   Källfilen och dellistan sparas löpande i IndexedDB (bara i den här webbläsaren, inget laddas upp); vid omladdning erbjuds att fortsätta. */
+var SES = { db: null, t: 0, ids: new WeakMap(), nid: 1, saved: 0, restoring: false, off: false };
+function sesDb() {
+  if (SES.db) return SES.db;
+  SES.db = new Promise(function (res, rej) { if (!window.indexedDB) return rej(new Error('idb')); var r = indexedDB.open('kb-session', 1);
+    r.onupgradeneeded = function () { var d = r.result; if (!d.objectStoreNames.contains('f')) d.createObjectStore('f'); if (!d.objectStoreNames.contains('s')) d.createObjectStore('s'); };
+    r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; });
+  SES.db.catch(function () { SES.off = true; }); return SES.db;
+}
+function sesReq(st, mode, fn) { return sesDb().then(function (d) { return new Promise(function (res, rej) { var tx = d.transaction(st, mode), o = tx.objectStore(st), r = fn(o); tx.oncomplete = function () { res(r && r.result); }; tx.onerror = tx.onabort = function () { rej(tx.error); }; }); }); }
+function sesFileId(f) { var id = SES.ids.get(f); if (!id) { id = 'f' + Date.now().toString(36) + (SES.nid++); SES.ids.set(f, id); } return id; }
+function sesSnap() {
+  if (!V.ready || !TL.clips.length || !TL.clips[0].file) return null; var files = [], ids = [];
+  TL.clips.forEach(function (c) { if (c.file && files.indexOf(c.file) < 0) { files.push(c.file); ids.push(sesFileId(c.file)); } });
+  return { v: 1, t: Date.now(), on: TL.on, sel: TL.sel, vs: V.start, ve: V.end, ids: ids, names: files.map(function (f) { return f.name; }), look: JSON.parse(JSON.stringify(V.look)),
+    slow: JSON.parse(JSON.stringify(V.slow || {})), text: V.text ? JSON.parse(JSON.stringify(V.text)) : null,
+    clips: TL.clips.map(function (c) { return { f: files.indexOf(c.file), inn: c.inn, out: c.out, cut: !!c.cut, name: c.name, look: JSON.parse(JSON.stringify(c.look || {})), slow: c.slow ? JSON.parse(JSON.stringify(c.slow)) : null }; }), files: files };
+}
+function sesSave() { // fördröjd och i vila – aldrig under uppspelning eller medan användaren drar
+  if (SES.off || SES.restoring) return; clearTimeout(SES.t);
+  SES.t = setTimeout(function go() {
+    if (V.playing || TL.playing || V.exporting || (window.KBI && performance.now() - KBI.t < 800)) { SES.t = setTimeout(go, 1500); return; }
+    var s = sesSnap(); if (!s) return; var files = s.files; delete s.files;
+    sesReq('f', 'readonly', function (o) { return o.getAllKeys(); }).then(function (keys) {
+      keys = keys || []; var need = files.filter(function (f, i) { return keys.indexOf(s.ids[i]) < 0; });
+      return sesReq('f', 'readwrite', function (o) { need.forEach(function (f) { o.put(f, sesFileId(f)); }); keys.forEach(function (k) { if (s.ids.indexOf(k) < 0) o.delete(k); }); }); // gamla källfiler tas bort
+    }).then(function () { return sesReq('s', 'readwrite', function (o) { o.put(s, 'cur'); }); }).then(function () { SES.saved++; }, function (e) { SES.err = String(e && e.message || e); });
+  }, 1200);
+}
+function sesClear() { clearTimeout(SES.t); return sesReq('s', 'readwrite', function (o) { o.delete('cur'); }).then(function () { return sesReq('f', 'readwrite', function (o) { o.clear(); }); }).catch(function () {}); }
+function sesRestore(s, files) {
+  SES.restoring = true; files.forEach(function (f, i) { SES.ids.set(f, s.ids[i]); });
+  if (typeof setMode === 'function') setMode('video'); tlAddFiles(files.slice());
+  var t0 = Date.now();
+  (function wait() {
+    var have = V.ready && TL.clips.length >= files.length && TL.clips.every(function (c) { return c.el && c.el.readyState >= 1; });
+    if (!have) { if (Date.now() - t0 > 60000) { SES.restoring = false; toast('Kunde inte återställa filmen.'); return; } setTimeout(wait, 200); return; }
+    try {
+      var base = files.map(function (f) { for (var k = 0; k < TL.clips.length; k++) if (TL.clips[k].file === f) return TL.clips[k]; return null; }), used = new Set();
+      if (!s.on || s.clips.length < 2 && files.length < 2) { V.start = s.vs; V.end = s.ve; Object.assign(V.look, s.look); if (s.slow && V.slow) Object.assign(V.slow, s.slow); if (videoAdjust && videoAdjust.apply) videoAdjust.apply(V.look, null); updateTrimInfo(); seekLatest(s.vs); }
+      else {
+        if (!TL.on) tlEnable();
+        TL.clips = s.clips.map(function (o) { var b = base[o.f]; if (!b) return null; var c = b; if (used.has(b)) { c = tlMakeClip(b.file, b.el); c.url = b.url; c.name = b.name; c.dur = b.dur; c.vw = b.vw; c.vh = b.vh; } used.add(b);
+          c.inn = o.inn; c.out = o.out; c.cut = o.cut; c.name = o.name || c.name; c.look = o.look; c.slow = o.slow; return c; }).filter(Boolean);
+        if (s.slow && V.slow) Object.assign(V.slow, s.slow); tlApplyRange(); tlSelect(Math.min(s.sel || 0, TL.clips.length - 1)); if (window.delaRefresh) delaRefresh();
+      }
+      if (s.text && V.text) Object.assign(V.text, s.text);
+      toast('Filmen är återställd – du kan fortsätta redigera.');
+    } catch (e) { toast('Kunde inte återställa allt: ' + (e && e.message || e)); }
+    SES.restoring = false; requestVideoRender(); sesSave();
+  })();
+}
+function sesOffer() {
+  if (SES.off) return;
+  sesReq('s', 'readonly', function (o) { return o.get('cur'); }).then(function (s) {
+    if (!s || !s.ids || !s.ids.length || Date.now() - s.t > 14 * 864e5 || V.ready) return;
+    return Promise.all(s.ids.map(function (id) { return sesReq('f', 'readonly', function (o) { return o.get(id); }); })).then(function (files) {
+      if (files.some(function (f) { return !f; }) || V.ready) return;
+      var n = s.on ? s.clips.length : 1, box = el('div', { id: 'sesOffer', class: 'sesoffer', role: 'dialog', 'aria-label': 'Fortsätt redigera' });
+      var st = document.createElement('style'); st.textContent = '.sesoffer{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9000;max-width:min(520px,calc(100vw - 24px));background:#1f2330;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:14px;line-height:1.4}.sesoffer .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.sesoffer button{min-height:44px;padding:0 16px;border-radius:10px;border:0;font-size:15px}.sesoffer .go{background:#3b82f6;color:#fff}.sesoffer .no{background:#3a3f4d;color:#fff}';
+      box.append(st, el('div', { text: 'Din senaste film (' + (s.names[0] || 'film') + (n > 1 ? ', ' + n + ' delar' : '') + ') kan återställas. Den sparades i den här webbläsaren ' + new Date(s.t).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' }) + '.' }));
+      var row = el('div', { class: 'row' }), go = el('button', { class: 'go', id: 'sesGo', text: 'Fortsätt redigera' }), no = el('button', { class: 'no', id: 'sesNo', text: 'Nej tack' });
+      go.onclick = function () { box.remove(); sesRestore(s, files); }; no.onclick = function () { box.remove(); sesClear(); };
+      row.append(go, no); box.append(row); document.body.append(box);
+    });
+  }).catch(function () {});
+}
+(function () {
+  ['delaAt', 'delaRemove', 'delaUndo', 'tlUI', 'updateTrimInfo', 'tlAddFiles'].forEach(function (k) { var o = window[k]; if (typeof o === 'function') window[k] = function () { var r = o.apply(this, arguments); sesSave(); return r; }; });
+  var _lv = loadVideo; loadVideo = function () { var b = document.getElementById('sesOffer'); if (b && !SES.restoring) b.remove(); return _lv.apply(this, arguments); };
+  document.addEventListener('visibilitychange', function () { if (document.hidden) { clearTimeout(SES.t); SES.t = 0; var k = window.KBI; if (k) k.t = 0; sesSave(); } });
+  setTimeout(sesOffer, 600);
+})();
 
 </script>
 </body>
