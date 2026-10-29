@@ -5999,6 +5999,29 @@ function wcErrBox(e, retry) { var old = document.getElementById('wcErr'); if (ol
       el('button', { type: 'button', class: 'btn', id: 'wcErrClose', style: 'min-height:44px', text: 'Stäng', onclick: function () { b.remove(); } })])]);
   document.body.append(b); }
 function wcCancel() { if (WCX) WCX.cancelled = true; }
+/* v23i: rutor i följd i stället för canvasesAtTimestamps. Den senare tömmer och startar om avkodaren vid varje nyckelruta
+   (iPhone-filmer: öppen GOP/B-rutor → en fel ruta eller ett hopp ungefär var 0,6 s = ryckig export på iPhone). Här avkodas klippet
+   en gång från första begärda tid till sista, och för varje utdatatid väljs den senaste källrutan med tidsstämpel ≤ t (aldrig bakåt). */
+function wcSeqFrames(sink, times, X) {
+  return { [Symbol.asyncIterator]: async function* () {
+    if (!times.length) return;
+    var lo = times[0], hi = times[0]; for (var q = 1; q < times.length; q++) { if (times[q] < lo) lo = times[q]; if (times[q] > hi) hi = times[q]; }
+    var mono = true; for (q = 1; q < times.length; q++) if (times[q] < times[q - 1] - 1e-6) { mono = false; break; }
+    if (!mono) { yield* sink.canvasesAtTimestamps(times); return; } // slowmotion o.d. som går bakåt: gamla vägen
+    var it = sink.canvases(Math.max(0, lo - 1e-3), hi + 0.5)[Symbol.asyncIterator](), cur = null, nxt = null, end = false;
+    async function pull() { if (end) return null; var r = await it.next(); if (r.done) { end = true; return null; } return r.value; }
+    try {
+      cur = await pull(); nxt = await pull();
+      for (var i = 0; i < times.length; i++) {
+        var t = times[i] + 1e-6;
+        while (nxt && nxt.timestamp <= t) { cur = nxt; nxt = await pull(); }
+        if (X) (X.srcTs || (X.srcTs = [])).push(cur ? cur.timestamp : -1);
+        yield cur;
+      }
+    } finally { try { if (it.return) await it.return(); } catch (e) {} }
+  } };
+}
+
 /* Huvudloop: plan → (analys) → för varje bild n: rita med shader vid T = n/fps → koda med tidsstämpel n/fps → MP4 */
 async function wcExportFilm(sel, dims) {
   var caps = await wcCaps(), plan = wcPlan(), fps = WCO.fps, W = dims.w, H = dims.h;
@@ -6032,7 +6055,7 @@ async function wcExportFilm(sel, dims) {
   // v21: avkodare + rutbuffertar skapas först när delen börjar och stängs när den är klar. Förut öppnades alla delars avkodare
   // (VideoDecoder + 3 canvas i full storlek per del) samtidigt – efter många delningar tog minnet/avkodarna slut (iPhone: export avbröts).
   plan.clips.forEach(function (c) { c.it = null; c.k = 0; c.done = false; });
-  function wcOpenIt(c) { if (WCO.failOnce) { WCO.failOnce = 0; throw new DOMException('Decoder failure', 'EncodingError'); } c.it = new MB.CanvasSink(c.vt, { width: c.dw, height: c.dh, fit: 'fill', poolSize: 2 }).canvasesAtTimestamps(c.rt || c.times)[Symbol.asyncIterator](); X.openDec = (X.openDec || 0) + 1; X.maxDec = Math.max(X.maxDec || 0, X.openDec); }
+  function wcOpenIt(c) { if (WCO.failOnce) { WCO.failOnce = 0; throw new DOMException('Decoder failure', 'EncodingError'); } c.it = wcSeqFrames(new MB.CanvasSink(c.vt, { width: c.dw, height: c.dh, fit: 'fill', poolSize: 3 }), c.rt || c.times, X)[Symbol.asyncIterator](); X.openDec = (X.openDec || 0) + 1; X.maxDec = Math.max(X.maxDec || 0, X.openDec); }
   function wcCloseIt(c) { var pr = null; if (c.it) { try { pr = c.it.return && c.it.return(); } catch (e) {} c.it = null; X.openDec--; } c.done = true; if (c.bc) { c.bc.width = c.bc.height = 0; c.bc = null; } return pr && pr.then ? pr.catch(function () {}) : null; } // v21b (F3): anroparen inväntar att avkodaren stängts innan nästa del öppnas
   var tA = 0, tE = 0, hid = false;
   try {
@@ -6496,8 +6519,8 @@ async function wcAnalyse(plan, fps, X) {
   for (var ci = 0; ci < plan.clips.length; ci++) {
     var AW = window.WC_AW || 256, c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? AW : Math.round(AW * asp) & ~1, ah = asp >= 1 ? Math.round(AW / asp) & ~1 : AW;
     var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d', { willReadFrequently: true });
-    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 2 }), prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
-    for await (var wc of sink.canvasesAtTimestamps(c.times)) {
+    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 3 }), prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
+    for await (var wc of wcSeqFrames(sink, c.times, null)) {
       if (X.cancelled) return;
       if (document.hidden) await wcWaitVisible(X);
       var a = performance.now();
@@ -8179,7 +8202,7 @@ function tlImovie() {
     if (i > 0) { var l = st.s[i] / T * 100; tr.append(el('i', { class: 'tlcutline', style: 'left:' + l + '%' }));
       tr.append(el('button', { type: 'button', class: 'tlflag' + (TL.cutSel === i ? ' on' : ''), 'data-cut': i, style: 'left:' + l + '%', title: (tlCut(i) ? 'Delning ' : 'Klippbyte ') + fmtTime(st.s[i]), 'aria-label': 'Hoppa till brytpunkt ' + i })); }
   });
-  var sel; if (pad) { var hw = Math.round((sc.clientWidth || vw) / 2); tlCenter(); } else if (sel = tr.querySelector('.tlclip.on')) { var x = sel.offsetLeft, w = sel.offsetWidth; if (x < sc.scrollLeft || x + w > sc.scrollLeft + vw) sc.scrollLeft = Math.max(0, x - vw / 3); }
+  var sel; if (pad) { var hw = Math.round((sc.clientWidth || vw) / 2); tlCenter(); requestAnimationFrame(tlCenter); } else if (sel = tr.querySelector('.tlclip.on')) { var x = sel.offsetLeft, w = sel.offsetWidth; if (x < sc.scrollLeft || x + w > sc.scrollLeft + vw) sc.scrollLeft = Math.max(0, x - vw / 3); }
   // knappar: förhandsvisa övergång, markera/ta bort markerade
   var card = $('#tlSelCard') || tlPane, has = TL.marked.size, row = el('div', { class: 'btnrow tlimvrow', id: 'tlImvRow' }, [
     el('button', { type: 'button', class: 'btn sm tltrash', id: 'tlTrash', 'data-act': 'trash', disabled: n < 2 || null, title: 'Ta bort vald del (Ångra finns)', 'aria-label': 'Ta bort vald del', text: '🗑 Ta bort del ' + (TL.sel + 1) }),
@@ -8237,7 +8260,7 @@ function tlDelMarked() {
       tlSeek(st.s[d.i] + (d.side === 'l' ? 0.001 : Math.max(0, tlLen(c) - 0.03))); });
   }, true);
   function end(e) { var d = TLTRIM; if (!d || e.pointerId !== d.id) return; e.stopPropagation(); TLTRIM = null; cancelAnimationFrame(d.raf); if (!d.pushed) return;
-    tlApplyRange(); delaRefresh(); toast((d.side === 'l' ? 'Början' : 'Slutet') + ' av delen flyttad. Ångra finns.'); }
+    tlApplyRange(); delaRefresh(); tlCenter(); requestAnimationFrame(tlCenter); /* v23i: ingen scrollLeft 0 efter släppt handtag */ toast((d.side === 'l' ? 'Början' : 'Slutet') + ' av delen flyttad. Ångra finns.'); }
   P.addEventListener('pointerup', end, true); P.addEventListener('pointercancel', end, true);
   P.addEventListener('touchmove', function (e) { if (TLTRIM || (e.target.closest && e.target.closest('.tlh'))) e.preventDefault(); }, { passive: false, capture: true }); // v23e: iOS – remsan rullar inte medan handtaget dras
   P.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.tlh')) { e.stopPropagation(); e.preventDefault(); } }, true); // tryck på handtaget väljer/flyttar aldrig delen
@@ -8772,7 +8795,7 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
 }
 (function () { // knapp i Klippbord: på jogghjulets rad, till höger om hjulet (inte i #kbBar, och dockan blir inte högre – bildytan krymper inte)
   var dock = window.KB && KB.dock; if (!dock) return;
-  document.head.append(el('style', { text: '#kbFadeRow{display:flex;align-items:center;gap:8px;margin-top:6px}#kbFadeRow #kbJog{flex:1 1 auto;min-width:150px;margin-top:0}@media (max-width:430px),(max-height:500px){#kbFadeRow{margin-top:4px}}#kbFadeRow button,#kbFadeRow select{min-height:44px;font-size:14px}#kbFade{flex:none;padding:0 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit}#kbFade[aria-pressed=true]{background:#ffd34d;color:#111;border-color:#ffd34d}#kbFadeLen{flex:none;padding:0 8px;border-radius:10px}#kbFadeLen:disabled{opacity:.4}' }));
+  document.head.append(el('style', { text: '#kbFadeRow{display:flex;align-items:center;gap:8px;margin-top:6px}#kbFadeRow{max-width:100%;box-sizing:border-box}#kbFadeRow #kbJog{flex:1 1 0;min-width:0;margin-top:0}#kbFadeRow #kbFade,#kbFadeRow #kbFadeLen{flex:0 0 auto}@media (max-width:430px),(max-height:500px){#kbFadeRow{margin-top:4px}}#kbFadeRow button,#kbFadeRow select{min-height:44px;font-size:14px}#kbFade{flex:none;padding:0 12px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit}#kbFade[aria-pressed=true]{background:#ffd34d;color:#111;border-color:#ffd34d}#kbFadeLen{flex:none;padding:0 8px;border-radius:10px}#kbFadeLen:disabled{opacity:.4}' }));
   var len = el('select', { id: 'kbFadeLen', 'aria-label': 'Uttoningens längd', title: 'Uttoningens längd' });
   [0.5, 1, 1.5, 2, 2.5, 3].forEach(function (v) { var o = el('option', { value: String(v), text: String(v).replace('.', ',') + ' s' }); len.append(o); });
   var btn = el('button', { type: 'button', id: 'kbFade', 'aria-pressed': 'false', 'aria-label': 'Tona ut till svart', title: 'Tona ut till svart i slutet', text: '◐ Tona ut' });
