@@ -6008,10 +6008,14 @@ function wcSeqFrames(sink, times, X) {
     var lo = times[0], hi = times[0]; for (var q = 1; q < times.length; q++) { if (times[q] < lo) lo = times[q]; if (times[q] > hi) hi = times[q]; }
     var mono = true; for (q = 1; q < times.length; q++) if (times[q] < times[q - 1] - 1e-6) { mono = false; break; }
     if (!mono) { yield* sink.canvasesAtTimestamps(times); return; } // slowmotion o.d. som går bakåt: gamla vägen
-    var it = sink.canvases(Math.max(0, lo - 1e-3), hi + 0.5)[Symbol.asyncIterator](), cur = null, nxt = null, end = false;
+    var st = Math.max(0, lo - 1e-3); // börja en hel GOP före första begärda tid: öppen GOP (iPhone) – de inledande B-rutorna behöver föregående GOP (WebKit: 'Decode error' annars)
+    st = Math.max(0, st - 2.5); // ≥ en GOP bakåt (iPhone: nyckelruta ≤ ~2 s); rutorna före lo hoppas bara över
+    var it = sink.canvases(st, hi + 0.5)[Symbol.asyncIterator](), cur = null, nxt = null, end = false;
     async function pull() { if (end) return null; var r = await it.next(); if (r.done) { end = true; return null; } return r.value; }
     try {
-      cur = await pull(); nxt = await pull();
+      try { cur = await pull(); nxt = await pull(); }
+      catch (e0) { if (!(st > 0)) throw e0; // avkodaren vägrar starta mitt i filmen (icke-IDR-nyckelruta/öppen GOP): börja om från filmens start och hoppa fram
+        try { if (it.return) await it.return(); } catch (e) {} if (X) X.seqRestart = (X.seqRestart || 0) + 1; st = 0; end = false; it = sink.canvases(0, hi + 0.5)[Symbol.asyncIterator](); cur = await pull(); nxt = await pull(); }
       for (var i = 0; i < times.length; i++) {
         var t = times[i] + 1e-6;
         while (nxt && nxt.timestamp <= t) { cur = nxt; nxt = await pull(); }
@@ -6055,7 +6059,7 @@ async function wcExportFilm(sel, dims) {
   // v21: avkodare + rutbuffertar skapas först när delen börjar och stängs när den är klar. Förut öppnades alla delars avkodare
   // (VideoDecoder + 3 canvas i full storlek per del) samtidigt – efter många delningar tog minnet/avkodarna slut (iPhone: export avbröts).
   plan.clips.forEach(function (c) { c.it = null; c.k = 0; c.done = false; });
-  function wcOpenIt(c) { if (WCO.failOnce) { WCO.failOnce = 0; throw new DOMException('Decoder failure', 'EncodingError'); } c.it = wcSeqFrames(new MB.CanvasSink(c.vt, { width: c.dw, height: c.dh, fit: 'fill', poolSize: 3 }), c.rt || c.times, X)[Symbol.asyncIterator](); X.openDec = (X.openDec || 0) + 1; X.maxDec = Math.max(X.maxDec || 0, X.openDec); }
+  function wcOpenIt(c) { if (WCO.failOnce) { WCO.failOnce = 0; throw new DOMException('Decoder failure', 'EncodingError'); } var cs = new MB.CanvasSink(c.vt, { width: c.dw, height: c.dh, fit: 'fill', poolSize: 3 }); cs.__vt = c.vt; c.it = wcSeqFrames(cs, c.rt || c.times, X)[Symbol.asyncIterator](); X.openDec = (X.openDec || 0) + 1; X.maxDec = Math.max(X.maxDec || 0, X.openDec); }
   function wcCloseIt(c) { var pr = null; if (c.it) { try { pr = c.it.return && c.it.return(); } catch (e) {} c.it = null; X.openDec--; } c.done = true; if (c.bc) { c.bc.width = c.bc.height = 0; c.bc = null; } return pr && pr.then ? pr.catch(function () {}) : null; } // v21b (F3): anroparen inväntar att avkodaren stängts innan nästa del öppnas
   var tA = 0, tE = 0, hid = false;
   try {
@@ -6519,7 +6523,7 @@ async function wcAnalyse(plan, fps, X) {
   for (var ci = 0; ci < plan.clips.length; ci++) {
     var AW = window.WC_AW || 256, c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? AW : Math.round(AW * asp) & ~1, ah = asp >= 1 ? Math.round(AW / asp) & ~1 : AW;
     var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d', { willReadFrequently: true });
-    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 3 }), prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
+    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 3 }); sink.__vt = c.vt, prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
     for await (var wc of wcSeqFrames(sink, c.times, null)) {
       if (X.cancelled) return;
       if (document.hidden) await wcWaitVisible(X);
