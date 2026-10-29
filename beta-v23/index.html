@@ -8072,7 +8072,7 @@ function delaGc() { // element som varken tidslinjen eller Ångra pekar på
 
 /* ---------- v21: iMovie-lik tidslinje: miniatyrer, delar med mellanrum, gula handtag, delningsflaggor, papperskorg/markering, förhandsvisning av övergång, slowmotion i orange ---------- */
 (function () {
-  var css = '.tlscroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;flex:1;padding-top:46px;margin-top:-2px;scrollbar-width:thin}' +
+  var css = '.tlpad{display:block;width:max-content;box-sizing:content-box;padding-bottom:8px!important}.tlscroll.kbc{overflow-y:hidden;overscroll-behavior:contain}.tlscroll.kbc .tltrack.imv{min-width:0}.tlscroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;flex:1;padding-top:46px;margin-top:-2px;scrollbar-width:thin}' +
     '.tltrack.imv{height:64px;flex:none;min-width:100%;background:transparent;touch-action:pan-x}' +
     '.imv .tlclip{background:none;border:0;padding:0;overflow:visible;top:0;bottom:0;touch-action:pan-x}' +
     '.imv .tlbox{position:absolute;top:0;bottom:0;left:3px;right:3px;border-radius:8px;overflow:hidden;background:#1a7fc1;border:3px solid transparent;box-sizing:border-box;display:flex}' +
@@ -8159,6 +8159,9 @@ var TLTRIM = null; TL.marked = TL.marked || new Set(); TL.cutSel = -1;
 function tlImovie() {
   if (!TLTH.busy) tlThumbGc(); var tr = tlTrackEl; if (!TL.on || !tr || !tr.isConnected) return;
   var lane = tr.parentNode, sc = el('div', { class: 'tlscroll', id: 'tlScroll' }); lane.insertBefore(sc, tr); sc.append(tr); tr.classList.add('imv');
+  /* v23g: i Klippbord omges filmen av en halv skärmbredd tomrum före och efter, så spelhuvudet kan stå mitt i hela vägen 0..slut */
+  var KB = document.body.classList.contains('kbon'), pad = null; if (KB) { pad = el('div', { class: 'tlpad' }); sc.append(pad); pad.append(tr); sc.classList.add('kbc'); }
+  sc.addEventListener('scroll', function () { if (sc.scrollTop) sc.scrollTop = 0; if (window.TLSCRUB && sc.classList.contains('kbc')) tlCenter(); }, { passive: true }); // under skrubb/glid får inget annat rulla remsan
   var n = TL.clips.length, vw = Math.max(200, sc.clientWidth || 320), Tz = Math.max(0.01, V.end), cs = TL.clips[TL.sel], W = Math.min(40000, Math.max(vw, n * 66, cs ? 134 * Tz / Math.max(0.01, tlLen(cs)) : 0)); /* v22 (N3): remsan zoomas så att vald del är minst 134 px – handtagen ryms inuti, ingen överlappning */ tr.style.width = W + 'px';
   var st = tlStarts(), T = Math.max(0.01, V.end);
   TL.clips.forEach(function (c, i) {
@@ -8171,7 +8174,7 @@ function tlImovie() {
     if (i > 0) { var l = st.s[i] / T * 100; tr.append(el('i', { class: 'tlcutline', style: 'left:' + l + '%' }));
       tr.append(el('button', { type: 'button', class: 'tlflag' + (TL.cutSel === i ? ' on' : ''), 'data-cut': i, style: 'left:' + l + '%', title: (tlCut(i) ? 'Delning ' : 'Klippbyte ') + fmtTime(st.s[i]), 'aria-label': 'Hoppa till brytpunkt ' + i })); }
   });
-  var sel = tr.querySelector('.tlclip.on'); if (sel) { var x = sel.offsetLeft, w = sel.offsetWidth; if (x < sc.scrollLeft || x + w > sc.scrollLeft + vw) sc.scrollLeft = Math.max(0, x - vw / 3); }
+  var sel; if (pad) { var hw = Math.round((sc.clientWidth || vw) / 2); tlCenter(); } else if (sel = tr.querySelector('.tlclip.on')) { var x = sel.offsetLeft, w = sel.offsetWidth; if (x < sc.scrollLeft || x + w > sc.scrollLeft + vw) sc.scrollLeft = Math.max(0, x - vw / 3); }
   // knappar: förhandsvisa övergång, markera/ta bort markerade
   var card = $('#tlSelCard') || tlPane, has = TL.marked.size, row = el('div', { class: 'btnrow tlimvrow', id: 'tlImvRow' }, [
     el('button', { type: 'button', class: 'btn sm tltrash', id: 'tlTrash', 'data-act': 'trash', disabled: n < 2 || null, title: 'Ta bort vald del (Ångra finns)', 'aria-label': 'Ta bort vald del', text: '🗑 Ta bort del ' + (TL.sel + 1) }),
@@ -8237,38 +8240,43 @@ function tlDelMarked() {
 /* v23f: Klippbord – swipa remsan för att skrubba (innehållet glider under stillastående spelhuvud, bilden följer), snärt ger glid, kort tryck flyttar spelhuvudet dit och väljer delen. Delar kan inte flyttas med swipe. */
 (function () {
   var P = TLP; if (!P) return;
-  document.head.append(el('style', { text: 'body.kbon .tltrack.imv,body.kbon .imv .tlclip{touch-action:pan-y!important}body.kbon .tltrack.imv{cursor:grab}' }));
+  document.head.append(el('style', { text: 'body.kbon .tltrack.imv,body.kbon .imv .tlclip{touch-action:pan-y!important}body.kbon .tltrack.imv{cursor:grab;-webkit-user-select:none;user-select:none}' }));
   var S = null, raf = 0, fl = 0;
   function pps() { return Math.max(1, tlTrackEl.getBoundingClientRect().width) / Math.max(0.01, V.end); }
-  function apply() { raf = 0; if (!S) return; var t = Math.max(0, Math.min(V.end, S.want)); tlSeek(t); var sc = document.getElementById('tlScroll'); if (sc) sc.scrollLeft = S.sl0 + (t - S.t0) * S.k; }
+  function apply() { raf = 0; if (!S) return; var t = Math.max(0, Math.min(V.end, S.want)); tlSeek(t); var sc = document.getElementById('tlScroll'); if (sc) tlCenter(); }
   P.addEventListener('pointerdown', function (e) {
     if (!document.body.classList.contains('kbon') || !TL.on || TLTRIM || e.button > 0) return;
     var tr = e.target.closest && e.target.closest('.tltrack.imv'); if (!tr || e.target.closest('.tlh,button,.tlflag,input')) return;
-    e.stopPropagation(); cancelAnimationFrame(fl); var sc = document.getElementById('tlScroll');
+    e.stopPropagation(); if (e.pointerType === 'mouse') e.preventDefault(); /* ingen markering/autorullning med mus */ cancelAnimationFrame(fl); var sc = document.getElementById('tlScroll');
     S = { id: e.pointerId, x: e.clientX, y: e.clientY, t0: TL.pos, want: TL.pos, k: pps(), sl0: sc ? sc.scrollLeft : 0, ms: Date.now(), on: false, was: !!(V.playing || TL.playing), v: 0, lx: e.clientX, lt: performance.now() };
   }, true);
   P.addEventListener('pointermove', function (e) {
     var s = S; if (!s || e.pointerId !== s.id) return; e.stopPropagation(); var dx = e.clientX - s.x;
-    if (!s.on) { if (Math.abs(dx) < 8) { if (Math.abs(e.clientY - s.y) > 10) S = null; return; } s.on = true; s.x = e.clientX; dx = 0; if (s.was) pauseVideo(); try { e.target.setPointerCapture(s.id); } catch (er) {} document.body.classList.add('tlscrub'); }
-    var now = performance.now(), dt = Math.max(1, now - s.lt); s.v = 0.7 * s.v + 0.3 * ((e.clientX - s.lx) / dt); s.lx = e.clientX; s.lt = now;
+    if (!s.on) { if (Math.abs(dx) < 8) { if (Math.abs(e.clientY - s.y) > 10) S = null; return; } s.on = true; window.TLSCRUB = true; s.x = e.clientX; dx = 0; if (s.was) pauseVideo(); try { e.target.setPointerCapture(s.id); } catch (er) {} document.body.classList.add('tlscrub'); }
+    var now = performance.now(); (s.hist = s.hist || []).push([now, e.clientX]); while (s.hist.length > 2 && now - s.hist[0][0] > 120) s.hist.shift(); s.lx = e.clientX; s.lt = now;
     s.want = s.t0 - dx / s.k; if (!raf) raf = requestAnimationFrame(apply);
   }, true);
   P.addEventListener('touchmove', function (e) { if (S && S.on) e.preventDefault(); }, { passive: false, capture: true });
   function end(e, cancel) {
-    var s = S; if (!s || e.pointerId !== s.id) return; e.stopPropagation(); S = null; cancelAnimationFrame(raf); raf = 0; document.body.classList.remove('tlscrub');
+    var s = S; if (!s || e.pointerId !== s.id) return; e.stopPropagation(); S = null; window.TLSCRUB = false; cancelAnimationFrame(raf); raf = 0; document.body.classList.remove('tlscrub');
     if (cancel) return;
     if (!s.on) { // kort tryck: hoppa dit och välj delen (ingen delning/flytt)
       if (Date.now() - s.ms > 600) return; var r = tlTrackEl.getBoundingClientRect(), t = Math.max(0, Math.min(V.end, (e.clientX - r.left) / Math.max(1, r.width) * V.end)), st = tlStarts().s, i = 0;
       for (var k = 0; k < st.length; k++) if (t >= st[k]) i = k;
       if (s.was) pauseVideo(); if (i !== TL.sel) { TL.sel = i; tlLoadLook(TL.clips[i]); tlUI(); } tlSeek(t); P.__noclick = Date.now(); return; }
     P.__noclick = Date.now(); s.want = Math.max(0, Math.min(V.end, s.want)); apply.call(null, S = s); S = null;
-    var v = s.v; if (Math.abs(v) < 0.3) return; var last = performance.now(), sc = document.getElementById('tlScroll');
-    (function step() { var now = performance.now(), dt = now - last; last = now; v *= Math.pow(0.995, dt); if (Math.abs(v) < 0.05 || S) return;
-      var t = Math.max(0, Math.min(V.end, TL.pos - v * dt / s.k)); tlSeek(t); if (sc) sc.scrollLeft -= v * dt; if (t <= 0 || t >= V.end) return; fl = requestAnimationFrame(step); })();
+    var h0 = s.hist && s.hist[0], h1 = s.hist && s.hist[s.hist.length - 1], v = (h0 && h1 && h1[0] > h0[0] && performance.now() - h1[0] < 100) ? (h1[1] - h0[1]) / (h1[0] - h0[0]) : 0; if (Math.abs(v) < 0.3) return; window.TLSCRUB = true; var last = performance.now(), sc = document.getElementById('tlScroll');
+    (function step() { var now = performance.now(), dt = now - last; last = now; v *= Math.pow(0.995, dt); if (Math.abs(v) < 0.05 || S) { window.TLSCRUB = !!(S && S.on); return; }
+      var t = Math.max(0, Math.min(V.end, TL.pos - v * dt / s.k)); tlSeek(t); tlCenter(); if (t <= 0 || t >= V.end) { window.TLSCRUB = false; return; } fl = requestAnimationFrame(step); })();
   }
   P.addEventListener('pointerup', function (e) { end(e, false); }, true); P.addEventListener('pointercancel', function (e) { end(e, true); }, true);
   P.addEventListener('click', function (e) { if (P.__noclick && Date.now() - P.__noclick < 400 && e.target.closest && e.target.closest('.tltrack.imv') && !e.target.closest('button')) { e.stopPropagation(); e.preventDefault(); } }, true);
 })();
+
+/* v23g: håll spelhuvudet i mitten av remsan i Klippbord (skrubb, glid, uppspelning, sökning) */
+function tlCenter() { var sc = document.getElementById('tlScroll'); if (!sc || !sc.classList.contains('kbc') || !tlTrackEl) return; var pd = sc.querySelector('.tlpad'), hw = Math.round(sc.clientWidth / 2); if (pd && pd.__hw !== hw) { pd.__hw = hw; pd.style.paddingLeft = pd.style.paddingRight = hw + 'px'; } var W = tlTrackEl.offsetWidth, T = Math.max(0.01, V.end); var q = Math.max(0, Math.min(T, TL.pos)); if (tlHead) tlHead.style.left = (q / T * 100) + '%'; sc.scrollLeft = Math.round(q / T * W); if (sc.scrollTop) sc.scrollTop = 0; }
+(function () { var o = tlDrawPlayhead; tlDrawPlayhead = function () { o.apply(this, arguments); if (TL.on && !TLTRIM && document.body.classList.contains('kbon')) tlCenter(); }; })();
+window.addEventListener('resize', function () { setTimeout(tlCenter, 50); });
 
 /* ---------- v22: förhandsvisningsproxy ----------
    Efter import görs i bakgrunden (bara när filmen står still) en lågupplöst kopia (≈540p H.264 + ljud) med WebCodecs/mediabunny.
@@ -8427,7 +8435,7 @@ function txtLane(build) {
     var b = el('div', { class: 'tltxt', id: 'tlTxt', role: 'slider', tabindex: 0, 'aria-label': 'Textens placering i tiden' }, [el('div', { class: 'txh l', 'data-s': 'l' }), el('span', {}), el('div', { class: 'txh r', 'data-s': 'r' })]);
     ln.append(b); txtDrag(b);
     var sc = document.getElementById('tlScroll');
-    if (sc && sc.contains(tlTrackEl)) { ln.style.width = tlTrackEl.style.width || '100%'; sc.append(ln); }
+    if (sc && sc.contains(tlTrackEl)) { ln.style.width = tlTrackEl.style.width || '100%'; (sc.querySelector('.tlpad') || sc).append(ln); }
     else { var lane = el('div', { class: 'tllane' }, [el('span', { class: 'tllbl', text: 'Text' }), ln]); ln.style.flex = '1'; var ls = tlTrackEl.closest('.tllanes'); if (ls) ls.append(lane); }
     var fS = el('input', { type: 'number', id: 'txtStart', min: '0', step: '0.01', inputmode: 'decimal', 'aria-label': 'Textens start i sekunder' });
     var fD = el('input', { type: 'number', id: 'txtDur', min: '0.1', step: '0.01', inputmode: 'decimal', 'aria-label': 'Textens längd i sekunder' });
