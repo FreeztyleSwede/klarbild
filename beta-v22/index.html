@@ -5548,6 +5548,9 @@ function tlAddFiles(fs) {
 }
 /* --- panel: Tidslinje (filmspår och musikspår parallellt) --- */
 var tlPane = pane('v-timeline');
+/* v22 Klippbord: spåren kan ligga i dockan under filmen – tidslinjens lyssnare sitter på både panelen och dockan */
+var KBDOCK = el('div', { id: 'kbDock', role: 'region', 'aria-label': 'Klippbord' });
+var TLP = { addEventListener: function (t, f, c) { tlPane.addEventListener(t, f, c); KBDOCK.addEventListener(t, f, c); }, contains: function (n) { return tlPane.contains(n) || KBDOCK.contains(n); } };
 (function () {
   var nav = $('#videoTools'), bs = nav.querySelector('.bsbtn');
   var b = el('button', { type: 'button', 'data-tool': 'v-timeline', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="7" height="5" rx="1.5"/><rect x="12" y="5" width="9" height="5" rx="1.5"/><rect x="6" y="14" width="12" height="5" rx="1.5"/></svg><span>Tidslinje</span>', onclick: function () { openTool('v-timeline'); tlUI(); } });
@@ -5635,7 +5638,7 @@ function tlClipDrag(blk, i) { blk.__tli = i; }
 function tlPieceDrag(blk, pc, len) { blk.__pc = pc; blk.__len = len; }
 var TLD = null;
 (function () {
-  var P = tlPane;
+  var P = TLP;
   P.addEventListener('pointerdown', function (e) {
     var t = e.target.closest && e.target.closest('.tlclip,.tlpiece'); if (!t || !P.contains(t) || e.target.closest('button,.tlh')) return;
     var touch = e.pointerType === 'touch' && t.classList.contains('tlclip');
@@ -8142,7 +8145,7 @@ function tlDelMarked() {
   var _s = delaPush; delaPush = function () { var r = _s.apply(this, arguments); return r; };
   var _und = delaUndo; delaUndo = function () { TL.marked.clear(); return _und.apply(this, arguments); };
   videoEl.addEventListener('loadedmetadata', function () { if (window.VPX && VPX.swapping) return; TL.marked.clear(); TL.cutSel = -1; setTimeout(tlThumbGc, 0); setTimeout(tlThumbGc, 700); });
-  var P = tlPane;
+  var P = TLP;
   P.addEventListener('click', function (e) {
     var f = e.target.closest && e.target.closest('.tlflag'); if (f) { var i = +f.getAttribute('data-cut'); TL.cutSel = i; if (TL.playing) tlPause(); tlSeek(tlStarts().s[i] + 0.001); tlUI(); return; }
     var b = e.target.closest && e.target.closest('[data-act]'); if (!b || !P.contains(b)) return; var a = b.getAttribute('data-act');
@@ -8456,6 +8459,73 @@ function sesOffer() {
   var _lv = loadVideo; loadVideo = function () { var b = document.getElementById('sesOffer'); if (b && !SES.restoring) b.remove(); return _lv.apply(this, arguments); };
   document.addEventListener('visibilitychange', function () { if (document.hidden) { clearTimeout(SES.t); SES.t = 0; var k = window.KBI; if (k) k.t = 0; sesSave(); } });
   setTimeout(sesOffer, 600);
+})();
+
+/* ---------- v22: Klippbord – ersätter Klipp och Tidslinje. Fast tidslinje under filmen, alltid synlig spelknapp,
+   Dela här / Ta bort, dra i kanterna för att ändra längd (gula handtag), jogghjul för ruta-för-ruta. ---------- */
+(function () {
+  var css = '#kbDock{display:none;position:absolute;left:0;right:0;bottom:0;z-index:6;padding:8px 10px 10px;border-top:1px solid rgba(255,255,255,.1);background:rgba(18,20,26,.97);border-radius:0 0 inherit inherit}body.kbon #kbDock{display:block}body.kbon #videoCard .canvas-wrap{bottom:var(--kbh,0px)}' +
+    'body.kbon #vbar{display:none!important}' +
+    '#kbBar{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}#kbBar .btn{min-height:44px;white-space:nowrap}' +
+    '#kbPlay{flex:none;width:48px;height:48px;border-radius:50%;border:0;background:#ffd34d;color:#111;display:grid;place-items:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}#kbPlay svg{width:22px;height:22px}' +
+    '#kbTime{flex:1 1 auto;min-width:0;font:600 13px/1.2 system-ui;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '#kbDel{color:#ff453a}#kbLanes{margin-top:6px;min-width:0}#kbLanes .tllanes{margin:0}' +
+    '#kbJog{position:relative;height:44px;margin-top:6px;border-radius:22px;background:#222 repeating-linear-gradient(90deg,#666 0 2px,transparent 2px 12px);touch-action:none;cursor:ew-resize;overflow:hidden;box-shadow:inset 0 0 10px #000}' +
+    '#kbJog::after{content:"";position:absolute;left:50%;top:6px;bottom:6px;width:3px;margin-left:-1px;background:#ffd34d;border-radius:2px}#kbJog span{position:absolute;left:12px;top:50%;transform:translateY(-50%);font:12px system-ui;color:#bbb;pointer-events:none}' +
+    '@media (max-width:430px){#kbBar .btn{padding-left:10px;padding-right:10px}}';
+  document.head.append(el('style', { text: css }));
+  var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
+  var dock = KBDOCK;
+  var play = el('button', { type: 'button', id: 'kbPlay', 'aria-label': 'Spela', html: PLAY, onclick: function () { if (V.playing || TL.playing) pauseVideo(); else playVideo(); kbUpd(true); } });
+  var time = el('span', { id: 'kbTime', text: '0:00,0 / 0:00' });
+  var split = el('button', { type: 'button', class: 'btn sm', id: 'kbSplit', text: '✂ Dela här', onclick: function () { if (V.playing || TL.playing) pauseVideo(); delaAt(); } });
+  var del = el('button', { type: 'button', class: 'btn sm', id: 'kbDel', text: '🗑 Ta bort', title: 'Ta bort vald del (Ångra finns)', onclick: function () { if (TL.clips.length < 2) { toast('Det måste finnas minst en del kvar.'); return; } if (V.playing || TL.playing) pauseVideo(); delaRemove(); } });
+  var lanes = el('div', { id: 'kbLanes' });
+  var jog = el('div', { id: 'kbJog', role: 'slider', tabindex: 0, 'aria-label': 'Jogghjul: dra för att stega ruta för ruta' }, [el('span', { text: '◀ ruta ▶' })]);
+  dock.append(el('div', { id: 'kbBar' }, [play, time, split, del]), lanes, jog);
+  var vb = $('#vbar'); vb.parentNode.insertBefore(dock, vb.nextSibling);
+  window.KB = { on: false, dock: dock };
+  if (window.ResizeObserver) new ResizeObserver(function () { var h = KB.on ? dock.offsetHeight : 0; document.body.style.setProperty('--kbh', h + 'px'); requestAnimationFrame(refit); }).observe(dock);
+  function fr() { return 1 / ((window.WCO && WCO.fps) || 30); }
+  function pos() { return TL.on ? TL.pos : (videoEl.currentTime || 0) - (V.start || 0); }
+  function seekTo(p) { if (TL.on) tlSeek(p); else seekLatest((V.start || 0) + p); }
+  function f1(v) { var m = Math.floor(v / 60), s = v - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1).replace('.', ','); }
+  var lastTxt = '', lastPl = null;
+  window.kbUpd = function (force) { if (!KB.on) return; var pl = !!(V.playing || TL.playing);
+    if (pl !== lastPl || force) { lastPl = pl; play.innerHTML = pl ? PAUSE : PLAY; play.setAttribute('aria-label', pl ? 'Pausa' : 'Spela'); }
+    var L = TL.on ? V.end : (V.end - V.start), t = f1(Math.max(0, pos())) + ' / ' + f1(Math.max(0, L || 0)); if (t !== lastTxt) { lastTxt = t; time.textContent = t; }
+    del.disabled = !TL.on || TL.clips.length < 2; split.disabled = !V.ready; };
+  // jogghjul: 10 px = en ruta; snabb dragning ger fler rutor
+  var jx = null, acc = 0, base = 0;
+  jog.addEventListener('pointerdown', function (e) { if (!V.ready) return; if (V.playing || TL.playing) pauseVideo(); jx = e.clientX; acc = 0; base = pos(); try { jog.setPointerCapture(e.pointerId); } catch (er) {} e.preventDefault(); });
+  jog.addEventListener('pointermove', function (e) { if (jx == null) return; var dx = e.clientX - jx; jx = e.clientX; acc += dx; jog.style.backgroundPosition = acc + 'px 0';
+    var n = Math.trunc(acc / 10); if (!n) return; var L = TL.on ? V.end : (V.end - V.start); var p = Math.max(0, Math.min(L - 0.001, base + n * fr())); seekTo(p); kbUpd(); });
+  function up() { jx = null; } jog.addEventListener('pointerup', up); jog.addEventListener('pointercancel', up);
+  jog.addEventListener('keydown', function (e) { var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!d) return; e.preventDefault(); if (V.playing || TL.playing) pauseVideo(); var L = TL.on ? V.end : (V.end - V.start); seekTo(Math.max(0, Math.min(L - 0.001, pos() + d * fr() * (e.shiftKey ? 10 : 1)))); kbUpd(); });
+  // tidslinjens spår flyttas från panelen till dockan (byggs om av tlUI)
+  function park() { if (!KB.on) return; var l = tlPane.querySelector('.tllanes'); if (l) { lanes.innerHTML = ''; lanes.append(l); } }
+  var _u = tlUI; tlUI = function () { var r = _u.apply(this, arguments); try { park(); kbUpd(true); } catch (e) {} return r; };
+  // Klippbord i menyn: ersätter knapparna Klipp och Tidslinje (panelerna finns kvar)
+  var nav = $('#videoTools'), old = nav.querySelector('[data-tool=v-trim]');
+  var btn = el('button', { type: 'button', 'data-tool': 'v-board', id: 'kbBtn', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="10" rx="2"/><path d="M3 18h18M8 18v3M16 18v3"/><circle cx="6.5" cy="9" r="1.5"/><path d="M10 9h8"/></svg><span>Klippbord</span>', onclick: function () { openTool('v-board'); } });
+  nav.insertBefore(btn, old || nav.firstChild);
+  var hideCss = el('style', { text: '#videoTools [data-tool=v-trim],#videoTools [data-tool=v-timeline]{display:none!important}' }); document.head.append(hideCss);
+  var _o = openTool; openTool = function (id) {
+    if (id === 'v-board') { if (V.ready && !TL.on) tlEnable(); _o.call(this, 'v-timeline'); videoTool = 'v-board';
+      [].forEach.call(document.querySelectorAll('.tools button'), function (b) { b.classList.toggle('on', b === btn); });
+      KB.on = true; document.body.classList.add('kbon'); var h = tlPane.querySelector('h3'); tlUI(); h = tlPane.querySelector('h3'); if (h) h.textContent = 'Klippbord'; kbUpd(true); requestAnimationFrame(refit); return; }
+    if (KB.on && id.charAt(0) === 'v') { KB.on = false; document.body.classList.remove('kbon'); var l = lanes.querySelector('.tllanes'); if (l) tlPane.insertBefore(l, tlPane.querySelector('#tlInfo')); }
+    return _o.apply(this, arguments); };
+  var _sm = setMode; setMode = function (m) { if (m !== 'video' && KB.on) { KB.on = false; document.body.classList.remove('kbon'); } return _sm.apply(this, arguments); };
+  // rubriken i panelen
+  var _u2 = tlUI; tlUI = function () { var r = _u2.apply(this, arguments); if (KB.on) { var h = tlPane.querySelector('h3'); if (h) h.textContent = 'Klippbord'; var s = tlPane.querySelector('p.sub'); if (s) s.textContent = 'Tidslinjen ligger under filmen. Dra i de gula kanterna för att ändra längd, tryck Dela här vid spelhuvudet och Ta bort för vald del. Jogghjulet stegar ruta för ruta.'; } return r; };
+  // tid/spelknapp: billig uppdatering (bara när texten ändras)
+  var _r = tlRender; tlRender = function () { var r = _r.apply(this, arguments); if (KB.on) kbUpd(); return r; };
+  ['play', 'pause', 'seeked', 'timeupdate'].forEach(function (ev) { videoEl.addEventListener(ev, function () { if (KB.on) kbUpd(); }); });
+  var _pv = playVideo; playVideo = function () { var r = _pv.apply(this, arguments); if (KB.on) kbUpd(); return r; };
+  var _pz = pauseVideo; pauseVideo = function () { var r = _pz.apply(this, arguments); if (KB.on) kbUpd(); return r; };
+  // hjälpen
+  var _h = openHelp; openHelp = function () { var r = _h.apply(this, arguments); var b = document.querySelector('#helpSheet .helpbox'); if (b && !b.querySelector('#kbHelp')) b.insertBefore(el('p', { class: 'info', id: 'kbHelp', text: 'Klippbord (film): tidslinjen ligger fast under filmen. Gula kanter: dra för att ändra längden på vald del. ✂ Dela här delar vid spelhuvudet, 🗑 Ta bort tar bort vald del (Ångra finns). Jogghjulet: dra åt sidan för att stega ruta för ruta (← → på tangentbordet). Spelknappen syns alltid.' }), b.children[2] || null); return r; };
 })();
 
 </script>
