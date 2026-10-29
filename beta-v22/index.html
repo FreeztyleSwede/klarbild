@@ -2008,11 +2008,12 @@ function tapRecognizer(target, o) {
 }
 
 /* Återkalla en blob-URL först när inget element längre visar den (WebKit gav "access control checks" för återkallade URL:er) */
+var KB_REVOKED = new Set(); /* v22: återkallade URL:er – sovande/bortkopplade element får aldrig ladda dem igen (WebKit: "access control checks") */
 function revokeSafe(u, n) {
   if (!u) return;
   var used = false; try { used = !!document.querySelector('[src="' + u + '"]'); } catch (e) {}
   if (used && (n || 0) < 24) { setTimeout(function () { revokeSafe(u, (n || 0) + 1); }, 5000); return; }
-  try { URL.revokeObjectURL(u); } catch (e) {}
+  KB_REVOKED.add(u); try { URL.revokeObjectURL(u); } catch (e) {}
 }
 
 /* v22: originalfilmens mått även när förhandsvisningen spelar proxyn (exporten och upplösningsvalet utgår från originalet) */
@@ -7946,7 +7947,7 @@ function slowSeekSrc(t) { if (!TL.on) return seekLatest(t); var i = TL.sel, c = 
    blir det ryckigt. Nu: bara delar som spelas eller börjar inom 2,5 s har sin film laddad ("vaken"); övriga sover (src bort → avkodaren
    släpps). Element som ingen del eller Ångra längre pekar på tas bort helt och deras objectURL frigörs. */
 var DELA_ALL = [];
-function delaWake(c) { var e = c.el; if (!c.url) return; if (e === videoEl || !e.__kbSleep) return; e.__kbSleep = false; var t = c.inn;
+function delaWake(c) { var e = c.el; if (!c.url || KB_REVOKED.has(c.url)) return; if (e === videoEl || !e.__kbSleep) return; e.__kbSleep = false; var t = c.inn;
   if (e.__kbWf) e.removeEventListener('loadedmetadata', e.__kbWf); /* v22b: ingen lyssnare kvar om elementet söver innan metadata */
   e.addEventListener('loadedmetadata', e.__kbWf = function f() { e.removeEventListener('loadedmetadata', f); e.__kbWf = null; try { if (Math.abs(e.currentTime - t) > 0.05 && !TL.playing) e.currentTime = t; } catch (er) {} });
   e.preload = 'auto'; e.src = c.url; e.load(); }
@@ -8287,7 +8288,7 @@ function pxUi() { // diskret status nere till vänster i bilden
   if (p && p.url) t = 'Snabb förhandsvisning ' + p.h + 'p'; else if (J && J.mode) t = 'Förbereder snabb förhandsvisning' + (J.prog ? ' ' + Math.round(J.prog * 100) + ' %' : '…');
   if (b.textContent !== t) b.textContent = t; b.classList.toggle('hidden', !t || !V.ready);
   clearTimeout(VPX.hideT); if (p && p.url) VPX.hideT = setTimeout(function () { b.classList.add('hidden'); }, 4000); }
-function pxReset() { if (VPX.job && VPX.job.cancel) VPX.job.cancel(); VPX.map.forEach(function (p) { if (p.url) setTimeout(function () { try { URL.revokeObjectURL(p.url); } catch (e) {} }, 3000); }); VPX.map.clear(); }
+function pxReset() { if (VPX.job && VPX.job.cancel) VPX.job.cancel(); VPX.map.forEach(function (p) { if (p.url) setTimeout(function () { revokeSafe(p.url); }, 3000); }); VPX.map.clear(); }
 (function () {
   setInterval(pxTick, 1200);
   ['tlPlay', 'playVideo'].forEach(function (k) { var o = window[k]; if (typeof o === 'function') window[k] = function () { if (VPX.job && VPX.job.cancel && !VPX.job.cancelled) VPX.job.cancel(); VPX.idle = performance.now(); return o.apply(this, arguments); }; }); // uppspelning avbryter bygget direkt
@@ -8472,7 +8473,9 @@ function sesOffer() {
     '#kbDel{color:#ff453a}#kbLanes{margin-top:6px;min-width:0}#kbLanes .tllanes{margin:0}' +
     '#kbJog{position:relative;height:44px;margin-top:6px;border-radius:22px;background:#222 repeating-linear-gradient(90deg,#666 0 2px,transparent 2px 12px);touch-action:none;cursor:ew-resize;overflow:hidden;box-shadow:inset 0 0 10px #000}' +
     '#kbJog::after{content:"";position:absolute;left:50%;top:6px;bottom:6px;width:3px;margin-left:-1px;background:#ffd34d;border-radius:2px}#kbJog span{position:absolute;left:12px;top:50%;transform:translateY(-50%);font:12px system-ui;color:#bbb;pointer-events:none}' +
-    '@media (max-width:430px){#kbBar .btn{padding-left:10px;padding-right:10px}}';
+    '@media (max-width:430px){#kbBar .btn{padding-left:10px;padding-right:10px}' +
+    /* kompakt docka på telefon: inga banetiketter, lägre luft ovanför spåret, lägre textbana */
+    '#kbLanes{margin-top:4px}#kbLanes .tllanes{padding:2px 0}#kbLanes .tllane{padding:1px 4px}#kbLanes .tllbl{display:none}#kbLanes #tlScroll{padding-top:24px}#kbLanes #tlTxtLane{height:34px;margin-top:2px}#kbLanes #tlMusic{height:24px}#kbJog{margin-top:4px}}';
   document.head.append(el('style', { text: css }));
   var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg>';
   var dock = KBDOCK;
