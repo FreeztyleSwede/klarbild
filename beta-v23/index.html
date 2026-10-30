@@ -6020,6 +6020,7 @@ function wcSeqFrames(sink, times, X) {
       catch (e) { var d = new Error('KBDecode vid ' + lastTs.toFixed(2) + ' s: ' + ((e && e.message) || e)); d.name = 'KBDecodeError'; d.at = lastTs; d.cause = e; if (X) X.decErr = d.message; throw d; }
       finally { clearTimeout(tm); }
       if (r.done) { end = true; return null; } if (r.value) lastTs = r.value.timestamp; return r.value; }
+    var vEnd = Infinity; try { if (sink.__vt && sink.__vt.computeDuration) vEnd = await sink.__vt.computeDuration(); } catch (e) {} if (!(vEnd > 0)) vEnd = Infinity;
     try {
       try { cur = await pull(); nxt = await pull(); }
       catch (e0) { if (!(st > 0)) throw e0; // avkodaren vägrar starta mitt i filmen (icke-IDR-nyckelruta/öppen GOP): börja om från filmens start och hoppa fram
@@ -6027,7 +6028,7 @@ function wcSeqFrames(sink, times, X) {
       for (var i = 0; i < times.length; i++) {
         var t = times[i] + 1e-6;
         while (nxt && nxt.timestamp <= t) { cur = nxt; nxt = await pull(); }
-        if (end && !nxt && cur && t > cur.timestamp + (window.WCO && WCO.truncTol || 0.5)) { // v23k: avkodaren tog slut för tidigt (avklippt/ofullständig källfil) – aldrig frysta rutor och tyst ljud
+        if (end && !nxt && cur && Math.min(t, vEnd) > cur.timestamp + (window.WCO && WCO.truncTol || 0.5)) { // v23l: mot bildspårets egen längd (ljud får vara längre) // v23k: avkodaren tog slut för tidigt (avklippt/ofullständig källfil) – aldrig frysta rutor och tyst ljud
           var tr = new Error('KBDecode: källan tar slut vid ' + cur.timestamp.toFixed(2) + ' s, behövde ' + t.toFixed(2) + ' s'); tr.name = 'KBDecodeError'; tr.at = cur.timestamp; tr.trunc = true; if (X) X.decErr = tr.message; throw tr; }
         if (X) (X.srcTs || (X.srcTs = [])).push(cur ? cur.timestamp : -1);
         yield cur;
@@ -6542,7 +6543,7 @@ async function wcAnalyse(plan, fps, X) {
   for (var ci = 0; ci < plan.clips.length; ci++) {
     var AW = window.WC_AW || 256, c = plan.clips[ci], asp = c.dw / c.dh, aw = asp >= 1 ? AW : Math.round(AW * asp) & ~1, ah = asp >= 1 ? Math.round(AW / asp) & ~1 : AW;
     var cv = document.createElement('canvas'); cv.width = aw; cv.height = ah; var cx = cv.getContext('2d', { willReadFrequently: true });
-    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 3 }); sink.__vt = c.vt, prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
+    var sink = new MB.CanvasSink(c.vt, { width: aw, height: ah, fit: 'fill', poolSize: 3 }); sink.__vt = c.vt; var prev = null, cur = null, lastG = null, lastH = null, lastV = { x: 0, y: 0 }; c.mot = []; c.lum = [];
     for await (var wc of wcSeqFrames(sink, c.times, null)) {
       if (X.cancelled) return;
       if (document.hidden) await wcWaitVisible(X);
@@ -8870,7 +8871,7 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
       [].forEach.call(hdr.querySelectorAll('*'), function (b) { var r = b.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return;
         if (r.right > g.left && r.left < g.right && r.bottom > g.top && r.top < g.bottom) bot = Math.max(bot, r.bottom - g.top + 2); });
       if (bot) grip.style.top = Math.ceil(bot) + 'px'; return; }
-    var up = 24, dn = 12;
+    var up = 28, dn = 16;
     [].forEach.call(document.querySelectorAll(CTL), function (b) { if (sp.contains(b)) return; var r = b.getBoundingClientRect(); if (r.width < 1 || r.height < 1 || r.right <= g.left || r.left >= g.right) return;
       if (r.bottom <= g.top + 0.5 && r.bottom > g.top - up) up = Math.max(0, Math.floor(g.top - r.bottom));
       if (r.top >= g.bottom - 0.5 && r.top < g.bottom + dn) dn = Math.max(0, Math.floor(r.top - g.bottom)); });
@@ -8880,9 +8881,12 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
   document.addEventListener('click', function () { requestAnimationFrame(fitGrip); setTimeout(fitGrip, 400); }, true);
   function cur() { var r = panel.getBoundingClientRect(); return isRow() ? r.width : r.height; }
   var d = null, lastTap = 0, dbl = false;
-  function swallow() { var until = Date.now() + 700; function f(ev) { if (Date.now() > until) return off(); ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation(); if (ev.type === 'click') off(); }
-    function off() { ['click', 'pointerup', 'mouseup', 'touchend', 'dblclick'].forEach(function (t) { window.removeEventListener(t, f, true); }); }
-    ['click', 'pointerup', 'mouseup', 'touchend', 'dblclick'].forEach(function (t) { window.addEventListener(t, f, true); }); setTimeout(off, 750); }
+  // v23l: släng bara klicket (mouseup/click/dblclick) som webbläsaren skapar efter dubbeltrycket – nära greppet, högst 500 ms, sedan bort
+  function swallow(x, y) { var until = Date.now() + 500, T = ['mouseup', 'click', 'dblclick'];
+    function f(ev) { if (Date.now() > until) return off(); if (Math.abs(ev.clientX - x) > 40 || Math.abs(ev.clientY - y) > 40) return;
+      ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation(); if (ev.type === 'click') off(); }
+    function off() { T.forEach(function (t) { window.removeEventListener(t, f, true); }); }
+    T.forEach(function (t) { window.addEventListener(t, f, true); }); setTimeout(off, 550); }
   grip.addEventListener('pointerdown', function (e) {
     var now = Date.now(); if (now - lastTap < 350) { lastTap = 0; dbl = true; e.preventDefault(); e.stopPropagation(); return; } lastTap = now; // v23k: återställ först vid pointerup och svälj klicket
 
@@ -8892,7 +8896,7 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
     var row = isRow(), dl = row ? d.x - e.clientX : d.y - e.clientY; // menyn ligger till höger/nedanför: dra mot filmen = större meny
     if (Math.abs(dl) > 3) { d.moved = true; lastTap = 0; }
     if (row) st.w = clamp(d.v + dl); else st.h = clamp(d.v + dl); apply(false); });
-  function end(e) { if (dbl) { dbl = false; if (e) { e.preventDefault(); e.stopPropagation(); } swallow(); reset(); return; } if (!d) return; sp.classList.remove('drag'); var m = d.moved; d = null; if (m) { apply(true); window.dispatchEvent(new Event('resize')); } }
+  function end(e) { if (dbl) { dbl = false; if (e) { e.stopPropagation(); swallow(e.clientX, e.clientY); } reset(); return; } if (!d) return; sp.classList.remove('drag'); var m = d.moved; d = null; if (m) { apply(true); window.dispatchEvent(new Event('resize')); } }
   grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
   grip.addEventListener('dblclick', function (e) { e.preventDefault(); e.stopPropagation(); }); // återställningen sker i pointerup
   grip.addEventListener('keydown', function (e) { var k = e.key, row = isRow(), s = e.shiftKey ? 40 : 10, dl = 0;
