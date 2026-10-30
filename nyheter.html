@@ -1,7 +1,27 @@
 <!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><title>Klarbild – Nyheter</title>
 <style>body{font-family:-apple-system,system-ui,sans-serif;max-width:680px;margin:0 auto;padding:24px max(18px,env(safe-area-inset-left));line-height:1.55;background:#0b1a2e;color:#eef3f8}a{color:#ffd34d}h1{font-style:italic;font-weight:800}h2{color:#ffd34d;margin-top:28px}@media (prefers-color-scheme: light){body{background:#eef3f8;color:#0b1a2e}a,h2{color:#8a6500}}</style></head><body>
 <h1>Klarbild – Nyheter</h1>
-<h2>Version 22 (test)</h2><ul>
+<h2>Version 23</h2><ul>
+<li><b>Ändra storlek på menyn:</b> dra i det lilla greppet mellan menyn och filmen för att göra menyn bredare eller smalare (stående telefon: högre eller lägre). Dubbeltryck på greppet återställer. Inställningen sparas.</li>
+<li><b>Tydligt fel vid trasig film:</b> om källfilmen inte går att avkoda mitt i avbryts exporten med ett meddelande om var, i stället för att stå still.</li>
+<li><b>Rättat:</b> export med Stabilisering eller Förbättra fungerar igen, och filmer där ljudet är längre än bilden exporteras utan felaktig varning.</li>
+<li><b>Avklippta och ovisbara filmer:</b> en ofullständig källfil eller en film som webbläsaren inte kan visa (t.ex. HEVC utanför Safari) ger nu ett tydligt felmeddelande i stället för en fil med fryst eller svart bild.</li>
+<li><b>Delaren krockar inte med knapparna:</b> greppet mellan menyn och filmen ligger i en egen remsa, så ▶, helskärm och flikarna går alltid att trycka på. Dubbeltryck återställer utan att trycket går vidare.</li>
+<li><b>Jämnare export:</b> den sparade filmen läses nu ruta för ruta i följd från originalet i stället för att hoppa mellan nyckelrutor, så att iPhone-filmer inte får små ryck i exporten.</li>
+<li><b>Tona ut till svart:</b> ny knapp ◐ Tona ut i Klippbord (bredvid jogghjulet). När den är på tonas filmens slut ut till svart och ljudet tonas ned samtidigt – välj längd 0,5–3 s (1,5 s förvalt). Syns direkt när du spelar och drar, och blir likadant i den sparade filmen. Inställningen sparas med projektet.</li>
+<li><b>Bilden syns i Klippbord:</b> ingen svart bild vid uppspelning och ingen varannan svart ruta när du drar eller använder jogghjulet. Filmer från iPhone (HDR) visas också. Om iPad tappar grafikminnet byter Klarbild ritsätt direkt i stället för att frysa bilden.</li>
+<li><b>Snabbare inläsning:</b> korta klipp (upp till 60 s) spelas direkt utan att förbereda en snabbvisning. För längre klipp pausas förberedelsen medan du spelar och fortsätter sedan där den var.</li>
+<li><b>Till början (⏮):</b> ny knapp bredvid Spela i Klippbord som spolar till filmens början – fungerar både när filmen spelar och när den står still.</li>
+<li><b>Ångra (↶) bredvid Ta bort:</b> en liten Ångra-knapp ligger direkt intill 🗑 i Klippbord och är gråad när det inte finns något att ångra.</li>
+<li><b>Spelhuvudet står still i mitten:</b> när du swipar eller snärtar tidslinjen står den röda tidsmarkören kvar mitt på remsan hela vägen från början till slut, och filmen glider förbi under den. Remsan går inte längre att rubba på höjden.</li>
+<li><b>Swipa tidslinjen:</b> dra var som helst på remsan i Klippbord för att spola. Remsan glider under spelhuvudet och bilden följer med, och ett snärt låter den glida vidare. Ett kort tryck flyttar spelhuvudet dit och väljer delen. Uppspelningen pausas medan du drar, och delarna flyttas aldrig av en swipe.</li>
+<li><b>Trimma med de gula handtagen:</b> dra kanten på den valda delen för att korta eller förlänga den, som i iMovie. Delen flyttas eller delas aldrig, blir minst 0,5 s och visar bilden medan du drar. De gamla längdreglagen är borta i Klippbord.</li>
+<li><b>Säkrare knappar:</b> ett tryck mellan knapparna gör ingenting, Ta bort ligger sist bredvid Ångra, och dubbla knappar (Helskärm, Ta bort) är borttagna i Klippbord.</li>
+<li><b>Mindre knappar:</b> Dela här (✂) och Ta bort (🗑) är små ikoner, men lätta att träffa och med större avstånd så du inte trycker fel.</li>
+<li><b>Logg i appen:</b> håll fingret på loggan eller på Foto/Film-väljaren i 1 sekund (eller tryck fem gånger på loggan) så visas en logg med inläsning och uppspelning. Kopiera den och skicka till oss vid problem. Inga data lämnar enheten.</li>
+<li><b>Sparning i bakgrunden:</b> filmen sparas för återställning utan att appen hackar.</li>
+</ul>
+<h2>Version 22</h2><ul>
 <li><b>Klippbord:</b> ny meny som ersätter Klipp och Tidslinje. Tidslinjen ligger fast under filmen med en spelknapp som alltid syns, knapparna Dela här och Ta bort, gula kanter som du drar i för att ändra längden och ett jogghjul som stegar ruta för ruta (← → på tangentbordet). Tidslinjen täcker aldrig filmen: under filmen när telefonen står, bredvid när den ligger. Helskärm nås direkt från Klippbord.</li>
 <li><b>Inget ryck varje sekund efter delning:</b> filmen själv styr nu tidslinjens klocka. Förut spolades spelaren om ungefär en gång i sekunden, vilket syntes som ett ryck på iPhone.</li>
 <li><b>Snabbare förhandsvisning:</b> stora filmer (t.ex. 4K) får i bakgrunden en lätt kopia i cirka 540p som bara används när du tittar. Exporten görs alltid från originalet i full kvalitet.</li>
