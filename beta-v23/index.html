@@ -5987,6 +5987,8 @@ var WCHOLD = null; function wcHoldCanvas(fr) { // sista bilden behålls när del
   var b = WCHOLD || (WCHOLD = document.createElement('canvas')); if (b.width !== fr.width || b.height !== fr.height) { b.width = fr.width; b.height = fr.height; } b.getContext('2d').drawImage(fr, 0, 0); return b; }
 /* v21: begripligt fel + Försök igen */
 function wcErrText(e) { var m = String((e && (e.message || e.name)) || e || ''), n = (e && e.name) || '';
+  if (n === 'KBNoPicture') return 'Webbläsaren kan inte visa bilden i källfilmen' + (e.codec ? ' (' + e.codec + ')' : '') + '. Exporten avbröts – ingen trasig fil skapades. Öppna filmen i Safari på iPhone, iPad eller Mac, eller spara om den som H.264 och försök igen.';
+  if (n === 'KBDecodeError' && e.trunc) { var a1 = (e.at || 0), m1 = Math.floor(a1 / 60), s1 = Math.floor(a1 - m1 * 60); return 'Källfilmen tar slut vid ' + m1 + ':' + (s1 < 10 ? '0' : '') + s1 + ' – filen verkar vara avklippt eller ofullständig. Exporten avbröts. Kopiera filmen till enheten igen, eller korta klippet så att det slutar före ' + m1 + ':' + (s1 < 10 ? '0' : '') + s1 + '.'; }
   if (n === 'KBDecodeError') { var a = (e.at || 0), mm = Math.floor(a / 60), ss = Math.floor(a - mm * 60); return 'Källfilmen gick inte att avkoda vid ' + mm + ':' + (ss < 10 ? '0' : '') + ss + ' (filen kan vara skadad eller i ett format webbläsaren inte klarar). Exporten avbröts. Försök igen, eller ta bort den delen av filmen och exportera igen.'; }
   if (/QuotaExceeded|quota|NotReadable|space/i.test(m + n)) return 'Det finns inte tillräckligt med lagringsutrymme för filmen. Frigör utrymme på enheten och försök igen.';
   if (/memory|minne|allocation|OutOfMemory|RangeError/i.test(m + n)) return 'Enheten fick slut på minne under exporten. Försök igen – stäng gärna andra flikar och appar, eller välj en lägre upplösning.';
@@ -6025,6 +6027,8 @@ function wcSeqFrames(sink, times, X) {
       for (var i = 0; i < times.length; i++) {
         var t = times[i] + 1e-6;
         while (nxt && nxt.timestamp <= t) { cur = nxt; nxt = await pull(); }
+        if (end && !nxt && cur && t > cur.timestamp + (window.WCO && WCO.truncTol || 0.5)) { // v23k: avkodaren tog slut för tidigt (avklippt/ofullständig källfil) – aldrig frysta rutor och tyst ljud
+          var tr = new Error('KBDecode: källan tar slut vid ' + cur.timestamp.toFixed(2) + ' s, behövde ' + t.toFixed(2) + ' s'); tr.name = 'KBDecodeError'; tr.at = cur.timestamp; tr.trunc = true; if (X) X.decErr = tr.message; throw tr; }
         if (X) (X.srcTs || (X.srcTs = [])).push(cur ? cur.timestamp : -1);
         yield cur;
       }
@@ -6130,7 +6134,16 @@ function wcMemSink() {
 function wcOpenSink(X) { return Promise.resolve(window.wcOpfsSink ? wcOpfsSink(X) : null).then(function (s) { return s || wcMemSink(); }); }
 /* koppla in: exportVideoAt väljer bildexakt export när enheten klarar det, annars realtidsinspelningen */
 (function () {
-  var _old = exportVideoAt;
+  var _old0 = exportVideoAt;
+  // v23k: reservläget (realtidsinspelning) kräver att <video> kan visa bilden – annars blev det 1 svart ruta + bara ljud
+  function _old(sel, dims, why) {
+    if (!(videoEl.videoWidth > 0) || videoEl.error) {
+      var e = new Error('KBNoPicture: <video> kan inte avkoda källan' + (why ? ' (' + why + ')' : '')); e.name = 'KBNoPicture'; var m = /\(([^)]*)\)\s*$/.exec(why || ''); e.codec = m ? m[1] : '';
+      V.exporting = false; busy(false); V.lastExport = null; V.lastExportError = { name: e.name, message: e.message, text: wcErrText(e) };
+      wcErrBox(e, function () { exportVideoAt(sel, dims); }); return;
+    }
+    return _old0(sel, dims);
+  }
   exportVideoAt = function (sel, dims) {
     if (!V.ready) { toast('Välj en film först.'); return; }
     if (V.exporting) return;
@@ -6145,7 +6158,7 @@ function wcOpenSink(X) { return Promise.resolve(window.wcOpfsSink ? wcOpfsSink(X
         showResult($('#videoResult'), file, 'klarbild-' + V.name + (V.compress ? '-komprimerad' : '') + '-' + stamp() + '.mp4', 'video');
       }, function (e) {
         V.exporting = false; busy(false); expEnd(); console.warn('wc-export', e);
-        if (e && e.fallback) { toast('Bildexakt export går inte här (' + e.why + ') – spelar in i realtid i stället.', 5000); return _old(sel, dims); }
+        if (e && e.fallback) { if (!(videoEl.videoWidth > 0) || videoEl.error) return _old(sel, dims, e.why); toast('Bildexakt export går inte här (' + e.why + ') – spelar in i realtid i stället.', 5000); return _old(sel, dims); }
         V.lastExportError = { name: e && e.name, message: String((e && e.message) || e), text: wcErrText(e) };
         wcErrBox(e, function () { exportVideoAt(sel, dims); });
       });
@@ -8821,12 +8834,13 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
   var KEY = 'kb.split.v1', layout = document.querySelector('main.layout'), panel = document.querySelector('.panel'), stage = document.querySelector('.stage'), hdr = document.querySelector('header.top');
   if (!layout || !panel || !stage) return;
   document.head.append(el('style', { text:
-    '#kbSplitter{position:relative;flex:none;z-index:7;width:0;height:0;align-self:stretch}' +
+    '#kbSplitter{position:relative;flex:none;z-index:7;width:0;height:0;align-self:stretch}' + // v23k: delaren tar egen plats (44 px) – greppet överlappar aldrig filmens eller rubrikens kontroller
     '#kbSplitter .grip{position:absolute;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;display:grid;place-items:center;background:transparent}' +
     '#kbSplitter .grip::after{content:"";border-radius:3px;background:rgba(255,255,255,.45);box-shadow:0 0 0 1px rgba(0,0,0,.35)}' +
-    '#kbSplitter.row .grip{top:0;bottom:0;left:-38px;width:44px;cursor:col-resize}#kbSplitter.row .grip::after{width:5px;height:44px}' +
-    '#kbSplitter.col{width:auto;height:0}#kbSplitter.col .grip{left:0;right:0;top:-38px;height:44px;cursor:row-resize}#kbSplitter.col .grip::after{width:44px;height:5px}' +
-    '#kbSplitter.drag .grip::after{background:#ffd34d}body.fs #kbSplitter,body.ui-hidden #kbSplitter{display:none}' +
+    '#kbSplitter.row{width:44px;height:auto}#kbSplitter.row .grip{top:0;bottom:0;left:0;width:44px;cursor:col-resize}#kbSplitter.row .grip::after{width:5px;height:44px}' +
+    '#kbSplitter.col{width:auto;height:20px}#kbSplitter.col .grip{left:0;right:0;top:-12px;height:44px;cursor:row-resize}#kbSplitter.col .grip::after{width:44px;height:5px}' +
+    '#kbSplitter.drag .grip::after{background:#ffd34d}body.fs #kbSplitter,body.ui-hidden #kbSplitter,body.start #kbSplitter,#kbSplitter.off{display:none}' +
+    'body:not(.fs) #kbSplitter.col ~ .panel #kbDock{padding-top:0}' +
     'body.splw:not(.fs) .panel{width:var(--splw)!important;max-width:none}' +
     '@media (orientation:landscape) and (max-height:500px){body.splw:not(.fs) header.top{width:var(--splw)!important}}' +
     'body.splh:not(.fs) .panel{height:var(--splh)!important;max-height:none}body.splh:not(.fs) .panel .sheet{flex:1 1 auto!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:auto}'
@@ -8839,25 +8853,48 @@ function fadeEndPcm(data, len, CH, SR, i0, total) {
   // gränser: meny 220 px – 60 %, filmen aldrig under 40 %; staplat: meny minst 160 px
   function clamp(v) { var A = avail(), lo = isRow() ? 220 : 160, hi = Math.max(lo, A * 0.6); return Math.round(Math.max(lo, Math.min(hi, v))); }
   function apply(save) {
-    var row = isRow(), v = row ? st.w : st.h; sp.className = row ? 'row' : 'col';
+    var row = isRow(), v = row ? st.w : st.h; sp.classList.toggle('row', row); sp.classList.toggle('col', !row);
     document.body.classList.remove('splw', 'splh'); document.body.style.removeProperty('--splw'); document.body.style.removeProperty('--splh');
     if (v != null) { v = clamp(v); document.body.classList.add(row ? 'splw' : 'splh'); document.body.style.setProperty(row ? '--splw' : '--splh', v + 'px'); }
     if (save) try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {}
-    if (typeof refit === 'function') refit(); // filmytan räknas om direkt (ingen oskärpa/svart)
+    if (typeof refit === 'function') refit();
+    fitGrip(); requestAnimationFrame(fitGrip); // filmytan räknas om direkt (ingen oskärpa/svart)
   }
+  // v23k: rubrikradens knappar kan sticka ut över delarens spalt (liggande telefon, smal meny) – greppet börjar då under dem
+  // v23k: greppet sträcker sig aldrig över en kontroll. Liggande: rubrikradens knappar kan sticka ut över spalten (smal meny) – greppet börjar under dem.
+  // Staplat: 20 px egen remsa + upp till 24 px uppåt / 12 px nedåt för 44 px träffyta, men bara där ingen kontroll/bild finns.
+  var CTL = 'button,a[href],input,select,textarea,[role=tab],[role=button],[role=slider],[tabindex],canvas,video,.tlh,#tlScroll,#kbJog';
+  function fitGrip() { var pv = getComputedStyle(panel).display !== 'none'; sp.classList.toggle('off', !pv); if (!pv) return; // v23k: ingen meny (startskärmen) → ingen delare som tar plats
+    grip.style.top = ''; grip.style.height = ''; var row = sp.classList.contains('row'), g = sp.getBoundingClientRect();
+    if (row) { if (!hdr) return; var bot = 0;
+      [].forEach.call(hdr.querySelectorAll('*'), function (b) { var r = b.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return;
+        if (r.right > g.left && r.left < g.right && r.bottom > g.top && r.top < g.bottom) bot = Math.max(bot, r.bottom - g.top + 2); });
+      if (bot) grip.style.top = Math.ceil(bot) + 'px'; return; }
+    var up = 24, dn = 12;
+    [].forEach.call(document.querySelectorAll(CTL), function (b) { if (sp.contains(b)) return; var r = b.getBoundingClientRect(); if (r.width < 1 || r.height < 1 || r.right <= g.left || r.left >= g.right) return;
+      if (r.bottom <= g.top + 0.5 && r.bottom > g.top - up) up = Math.max(0, Math.floor(g.top - r.bottom));
+      if (r.top >= g.bottom - 0.5 && r.top < g.bottom + dn) dn = Math.max(0, Math.floor(r.top - g.bottom)); });
+    grip.style.top = -up + 'px'; grip.style.height = (g.height + up + dn) + 'px'; }
+  if (window.ResizeObserver) try { var ro = new ResizeObserver(function () { fitGrip(); }); if (hdr) ro.observe(hdr); ro.observe(stage); ro.observe(panel); [].forEach.call(stage.querySelectorAll('canvas,video,.vw-bar'), function (x) { ro.observe(x); }); } catch (e) {}
+  try { new MutationObserver(function () { requestAnimationFrame(fitGrip); }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
+  document.addEventListener('click', function () { requestAnimationFrame(fitGrip); setTimeout(fitGrip, 400); }, true);
   function cur() { var r = panel.getBoundingClientRect(); return isRow() ? r.width : r.height; }
-  var d = null, lastTap = 0;
+  var d = null, lastTap = 0, dbl = false;
+  function swallow() { var until = Date.now() + 700; function f(ev) { if (Date.now() > until) return off(); ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation(); if (ev.type === 'click') off(); }
+    function off() { ['click', 'pointerup', 'mouseup', 'touchend', 'dblclick'].forEach(function (t) { window.removeEventListener(t, f, true); }); }
+    ['click', 'pointerup', 'mouseup', 'touchend', 'dblclick'].forEach(function (t) { window.addEventListener(t, f, true); }); setTimeout(off, 750); }
   grip.addEventListener('pointerdown', function (e) {
-    var now = Date.now(); if (now - lastTap < 350) { lastTap = 0; reset(); e.preventDefault(); return; } lastTap = now;
+    var now = Date.now(); if (now - lastTap < 350) { lastTap = 0; dbl = true; e.preventDefault(); e.stopPropagation(); return; } lastTap = now; // v23k: återställ först vid pointerup och svälj klicket
+
     d = { x: e.clientX, y: e.clientY, v: cur(), id: e.pointerId, moved: false }; sp.classList.add('drag');
     try { grip.setPointerCapture(e.pointerId); } catch (er) {} e.preventDefault(); e.stopPropagation(); });
   grip.addEventListener('pointermove', function (e) { if (!d || e.pointerId !== d.id) return; e.stopPropagation();
     var row = isRow(), dl = row ? d.x - e.clientX : d.y - e.clientY; // menyn ligger till höger/nedanför: dra mot filmen = större meny
     if (Math.abs(dl) > 3) { d.moved = true; lastTap = 0; }
     if (row) st.w = clamp(d.v + dl); else st.h = clamp(d.v + dl); apply(false); });
-  function end(e) { if (!d) return; sp.classList.remove('drag'); var m = d.moved; d = null; if (m) { apply(true); window.dispatchEvent(new Event('resize')); } }
+  function end(e) { if (dbl) { dbl = false; if (e) { e.preventDefault(); e.stopPropagation(); } swallow(); reset(); return; } if (!d) return; sp.classList.remove('drag'); var m = d.moved; d = null; if (m) { apply(true); window.dispatchEvent(new Event('resize')); } }
   grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
-  grip.addEventListener('dblclick', function (e) { e.preventDefault(); reset(); });
+  grip.addEventListener('dblclick', function (e) { e.preventDefault(); e.stopPropagation(); }); // återställningen sker i pointerup
   grip.addEventListener('keydown', function (e) { var k = e.key, row = isRow(), s = e.shiftKey ? 40 : 10, dl = 0;
     if (row && (k === 'ArrowLeft' || k === 'ArrowRight')) dl = k === 'ArrowLeft' ? s : -s; else if (!row && (k === 'ArrowUp' || k === 'ArrowDown')) dl = k === 'ArrowUp' ? s : -s;
     else if (k === 'Home' || k === 'Escape') { reset(); e.preventDefault(); return; } else return;
